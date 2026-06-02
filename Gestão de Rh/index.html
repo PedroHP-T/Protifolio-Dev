@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RH Gestão</title>
+
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+
+  <!-- Tabler Icons (ícones usados no menu) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <span class="topbar-logo">RH Gestão</span>
+    <div class="topbar-right">
+      <i class="ti ti-bell"></i>
+      <div class="avatar">AM</div>
+    </div>
+  </header>
+
+  <!-- WRAPPER: sidebar + conteúdo -->
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <ul class="menu">
+        <li class="menu-item active" data-page="dashboard">
+          <i class="ti ti-layout-dashboard"></i>
+          <span>Dashboard</span>
+        </li>
+        <li class="menu-item" data-page="funcionarios">
+          <i class="ti ti-users"></i>
+          <span>Funcionários</span>
+        </li>
+        <li class="menu-item" data-page="escala">
+          <i class="ti ti-calendar"></i>
+          <span>Escalas</span>
+        </li>
+        <li class="menu-item" data-page="ponto">
+          <i class="ti ti-clock"></i>
+          <span>Folha de ponto</span>
+        </li>
+        <li class="menu-item" data-page="pagamentos">
+          <i class="ti ti-cash"></i>
+          <span>Pagamentos</span>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="content" id="content">
+      <!-- As páginas são carregadas aqui pelo app.js -->
+    </main>
+
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script>
+    // Redireciona para setup se necessário
+    (function () {
+      if (!Storage.sistemaConfigurado()) {
+        window.location.href = 'setup/empresa.html';
+        return;
+      }
+      if (Storage.getFuncionarios().length === 0) {
+        window.location.href = 'setup/funcionario.html';
+      }
+    })();
+  </script>
+  <script src="js/app.js"></script>
+</body>
+</html>

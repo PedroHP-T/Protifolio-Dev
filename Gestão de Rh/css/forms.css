@@ -1,0 +1,226 @@
+/* forms.css — estilo dos formulários de setup (empresa e funcionário) */
+
+/* ── PÁGINA DE SETUP (sem topbar/sidebar) ── */
+.setup-page {
+  min-height: 100vh;
+  background: var(--gray-100);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.setup-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  width: 100%;
+  max-width: 640px;
+}
+
+/* ── CABEÇALHO DO CARD ── */
+.setup-header {
+  margin-bottom: 28px;
+}
+
+.setup-logo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cobalt-600);
+  letter-spacing: 0.02em;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.setup-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.step-badge {
+  background: var(--cobalt-50);
+  color: var(--cobalt-600);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.setup-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: var(--space-xs);
+}
+
+.setup-subtitle {
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+/* ── SEÇÕES DO FORMULÁRIO ── */
+.form-section {
+  margin-bottom: 24px;
+}
+
+.form-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+/* ── GRID DE CAMPOS ── */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.form-grid.cols-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.form-grid.cols-1 {
+  grid-template-columns: 1fr;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.form-field.span-2 {
+  grid-column: span 2;
+}
+
+/* ── LABEL ── */
+.form-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700, #374151);
+}
+
+.form-field label .required {
+  color: var(--color-danger);
+  margin-left: 2px;
+}
+
+/* ── INPUTS ── */
+.form-field input,
+.form-field select,
+.form-field textarea {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--gray-900);
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+.form-field textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: var(--cobalt-400);
+  box-shadow: 0 0 0 3px var(--cobalt-50);
+}
+
+.form-field input.error,
+.form-field select.error {
+  border-color: var(--color-danger);
+}
+
+.field-error {
+  font-size: 11px;
+  color: var(--color-danger);
+  display: none;
+}
+
+.field-error.visible {
+  display: block;
+}
+
+/* ── GRUPO DE CHECKBOXES / RADIO ── */
+.check-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--gray-900);
+  cursor: pointer;
+}
+
+.check-item input[type="checkbox"],
+.check-item input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--cobalt-600);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── RODAPÉ DO FORMULÁRIO ── */
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.form-footer-info {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+/* ── ALERTAS ── */
+.alert {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: var(--space-lg);
+  display: none;
+}
+
+.alert.visible {
+  display: block;
+}
+
+.alert-error {
+  background: #FEF2F2;
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+.alert-success {
+  background: #F0FDF4;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+}

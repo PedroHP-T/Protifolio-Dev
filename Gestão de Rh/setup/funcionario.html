@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Funcionário — RH Gestão</title>
+
+  <link rel="stylesheet" href="../css/reset.css">
+  <link rel="stylesheet" href="../css/variables.css">
+  <link rel="stylesheet" href="../css/forms.css">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<body class="setup-page">
+
+  <div class="setup-card">
+
+    <!-- Cabeçalho -->
+    <div class="setup-header">
+      <span class="setup-logo">RH Gestão</span>
+
+      <div class="setup-step">
+        <span class="step-badge">Passo 2 de 2</span>
+      </div>
+
+      <h1 class="setup-title">Cadastro de funcionário</h1>
+      <p class="setup-subtitle">
+        Adicione o primeiro funcionário. Você poderá cadastrar mais dentro do sistema.
+      </p>
+    </div>
+
+    <!-- Alerta -->
+    <div class="alert alert-error" id="alerta-erro">
+      Preencha todos os campos obrigatórios antes de continuar.
+    </div>
+
+    <!-- SEÇÃO 1: Dados pessoais -->
+    <div class="form-section">
+      <p class="form-section-title">Dados pessoais</p>
+
+      <div class="form-grid cols-1">
+        <div class="form-field">
+          <label for="nome">Nome completo <span class="required">*</span></label>
+          <input type="text" id="nome" placeholder="Ex: Ana Paula Souza" />
+          <span class="field-error" id="erro-nome">Campo obrigatório</span>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="cpf">CPF <span class="required">*</span></label>
+          <input type="text" id="cpf" placeholder="000.000.000-00" maxlength="14" />
+          <span class="field-error" id="erro-cpf">Campo obrigatório</span>
+        </div>
+        <div class="form-field">
+          <label for="rg">RG</label>
+          <input type="text" id="rg" placeholder="00.000.000-0" />
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="nascimento">Data de nascimento</label>
+          <input type="date" id="nascimento" />
+        </div>
+        <div class="form-field">
+          <label for="sexo">Gênero</label>
+          <select id="sexo">
+            <option value="">Selecione...</option>
+            <option value="M">Masculino</option>
+            <option value="F">Feminino</option>
+            <option value="NB">Não binário</option>
+            <option value="NI">Prefiro não informar</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 2: Contato -->
+    <div class="form-section">
+      <p class="form-section-title">Contato</p>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="email">E-mail <span class="required">*</span></label>
+          <input type="email" id="email" placeholder="funcionario@empresa.com" />
+          <span class="field-error" id="erro-email">Campo obrigatório</span>
+        </div>
+        <div class="form-field">
+          <label for="celular">Celular</label>
+          <input type="text" id="celular" placeholder="(11) 90000-0000" maxlength="15" />
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 3: Cargo e contrato -->
+    <div class="form-section">
+      <p class="form-section-title">Cargo e contrato</p>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="cargo">Cargo <span class="required">*</span></label>
+          <input type="text" id="cargo" placeholder="Ex: Analista de RH" />
+          <span class="field-error" id="erro-cargo">Campo obrigatório</span>
+        </div>
+        <div class="form-field">
+          <label for="departamento">Departamento</label>
+          <select id="departamento">
+            <option value="">Selecione...</option>
+            <option value="rh">Recursos Humanos</option>
+            <option value="ti">Tecnologia</option>
+            <option value="financeiro">Financeiro</option>
+            <option value="comercial">Comercial</option>
+            <option value="operacoes">Operações</option>
+            <option value="marketing">Marketing</option>
+            <option value="juridico">Jurídico</option>
+            <option value="diretoria">Diretoria</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="tipo-contrato">Tipo de contrato</label>
+          <select id="tipo-contrato">
+            <option value="clt">CLT</option>
+            <option value="pj">PJ</option>
+            <option value="temporario">Temporário</option>
+            <option value="estagio">Estágio</option>
+            <option value="autonomo">Autônomo</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="admissao">Data de admissão <span class="required">*</span></label>
+          <input type="date" id="admissao" />
+          <span class="field-error" id="erro-admissao">Campo obrigatório</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 4: Pagamento -->
+    <div class="form-section">
+      <p class="form-section-title">Pagamento</p>
+
+      <div class="form-grid cols-3">
+        <div class="form-field">
+          <label for="salario">Salário (R$) <span class="required">*</span></label>
+          <input type="number" id="salario" placeholder="0,00" min="0" step="0.01" />
+          <span class="field-error" id="erro-salario">Campo obrigatório</span>
+        </div>
+        <div class="form-field">
+          <label for="vale-refeicao">Vale refeição (R$)</label>
+          <input type="number" id="vale-refeicao" placeholder="0,00" min="0" step="0.01" />
+        </div>
+        <div class="form-field">
+          <label for="vale-transporte">Vale transporte (R$)</label>
+          <input type="number" id="vale-transporte" placeholder="0,00" min="0" step="0.01" />
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="banco">Banco</label>
+          <select id="banco">
+            <option value="">Selecione...</option>
+            <option value="001">Banco do Brasil</option>
+            <option value="033">Santander</option>
+            <option value="104">Caixa Econômica</option>
+            <option value="237">Bradesco</option>
+            <option value="341">Itaú</option>
+            <option value="260">Nubank</option>
+            <option value="077">Inter</option>
+            <option value="290">PagBank</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="agencia">Agência</label>
+          <input type="text" id="agencia" placeholder="0000" maxlength="10" />
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="conta">Conta</label>
+          <input type="text" id="conta" placeholder="00000-0" />
+        </div>
+        <div class="form-field">
+          <label for="tipo-conta">Tipo de conta</label>
+          <select id="tipo-conta">
+            <option value="corrente">Corrente</option>
+            <option value="poupanca">Poupança</option>
+            <option value="pagamento">Pagamento</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 5: Horários -->
+    <div class="form-section">
+      <p class="form-section-title">Horários</p>
+
+      <div class="form-grid cols-3">
+        <div class="form-field">
+          <label for="turno">Turno</label>
+          <select id="turno" onchange="atualizarHorarios(this.value)">
+            <option value="manha">Manhã</option>
+            <option value="tarde">Tarde</option>
+            <option value="noite">Noite</option>
+            <option value="integral">Integral</option>
+            <option value="personalizado">Personalizado</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="entrada">Entrada</label>
+          <input type="time" id="entrada" value="08:00" />
+        </div>
+        <div class="form-field">
+          <label for="saida">Saída</label>
+          <input type="time" id="saida" value="17:00" />
+        </div>
+      </div>
+
+      <div class="form-grid cols-1" style="margin-top: 12px;">
+        <div class="form-field">
+          <label>Dias de folga</label>
+          <div class="check-group">
+            <label class="check-item"><input type="checkbox" name="folga" value="segunda" /> Segunda</label>
+            <label class="check-item"><input type="checkbox" name="folga" value="terca" /> Terça</label>
+            <label class="check-item"><input type="checkbox" name="folga" value="quarta" /> Quarta</label>
+            <label class="check-item"><input type="checkbox" name="folga" value="quinta" /> Quinta</label>
+            <label class="check-item"><input type="checkbox" name="folga" value="sexta" /> Sexta</label>
+            <label class="check-item"><input type="checkbox" name="folga" value="sabado" checked /> Sábado</label>
+            <label class="check-item"><input type="checkbox" name="folga" value="domingo" checked /> Domingo</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rodapé -->
+    <div class="form-footer">
+      <button class="btn btn-secondary" onclick="window.location.href='empresa.html'">
+        <i class="ti ti-arrow-left"></i>
+        Voltar
+      </button>
+      <button class="btn btn-primary" onclick="salvarFuncionario()">
+        Concluir cadastro
+        <i class="ti ti-check"></i>
+      </button>
+    </div>
+
+  </div>
+
+  <script src="../js/storage.js"></script>
+  <script src="../js/setup.js"></script>
+  <script>
+    // Horários pré-definidos por turno
+    function atualizarHorarios(turno) {
+      const horarios = {
+        manha:        { entrada: '06:00', saida: '14:00' },
+        tarde:        { entrada: '14:00', saida: '22:00' },
+        noite:        { entrada: '22:00', saida: '06:00' },
+        integral:     { entrada: '08:00', saida: '18:00' },
+        personalizado:{ entrada: '',      saida: ''      },
+      };
+      const h = horarios[turno];
+      if (h) {
+        document.getElementById('entrada').value = h.entrada;
+        document.getElementById('saida').value   = h.saida;
+      }
+    }
+
+    // Máscaras
+    document.getElementById('cpf').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 11);
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})\.(\d{3})(\d)/, '$1.$2.$3');
+      v = v.replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+      this.value = v;
+    });
+
+    document.getElementById('celular').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 11);
+      v = v.replace(/^(\d{2})(\d)/, '($1) $2');
+      v = v.replace(/(\d{5})(\d)/, '$1-$2');
+      this.value = v;
+    });
+  </script>
+</body>
+</html>

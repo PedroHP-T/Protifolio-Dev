@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro da Empresa — RH Gestão</title>
+
+  <link rel="stylesheet" href="../css/reset.css">
+  <link rel="stylesheet" href="../css/variables.css">
+  <link rel="stylesheet" href="../css/forms.css">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<body class="setup-page">
+
+  <div class="setup-card">
+
+    <!-- Cabeçalho -->
+    <div class="setup-header">
+      <span class="setup-logo">RH Gestão</span>
+
+      <div class="setup-step">
+        <span class="step-badge">Passo 1 de 2</span>
+      </div>
+
+      <h1 class="setup-title">Cadastro da empresa</h1>
+      <p class="setup-subtitle">Preencha os dados da sua empresa para começar a usar o sistema.</p>
+    </div>
+
+    <!-- Alerta de erro -->
+    <div class="alert alert-error" id="alerta-erro">
+      Preencha todos os campos obrigatórios antes de continuar.
+    </div>
+
+    <!-- SEÇÃO 1: Dados principais -->
+    <div class="form-section">
+      <p class="form-section-title">Dados principais</p>
+
+      <div class="form-grid cols-1">
+        <div class="form-field">
+          <label for="razao-social">Razão social <span class="required">*</span></label>
+          <input type="text" id="razao-social" placeholder="Ex: Empresa Ltda." />
+          <span class="field-error" id="erro-razao-social">Campo obrigatório</span>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="nome-fantasia">Nome fantasia</label>
+          <input type="text" id="nome-fantasia" placeholder="Ex: Empresa" />
+        </div>
+        <div class="form-field">
+          <label for="cnpj">CNPJ <span class="required">*</span></label>
+          <input type="text" id="cnpj" placeholder="00.000.000/0000-00" maxlength="18" />
+          <span class="field-error" id="erro-cnpj">Campo obrigatório</span>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="segmento">Segmento</label>
+          <select id="segmento">
+            <option value="">Selecione...</option>
+            <option value="tecnologia">Tecnologia</option>
+            <option value="comercio">Comércio</option>
+            <option value="industria">Indústria</option>
+            <option value="servicos">Serviços</option>
+            <option value="saude">Saúde</option>
+            <option value="educacao">Educação</option>
+            <option value="construcao">Construção</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="num-funcionarios">Número de funcionários</label>
+          <select id="num-funcionarios">
+            <option value="">Selecione...</option>
+            <option value="1-10">1 a 10</option>
+            <option value="11-50">11 a 50</option>
+            <option value="51-200">51 a 200</option>
+            <option value="201-500">201 a 500</option>
+            <option value="500+">Mais de 500</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 2: Endereço -->
+    <div class="form-section">
+      <p class="form-section-title">Endereço</p>
+
+      <div class="form-grid" style="grid-template-columns: 2fr 1fr;">
+        <div class="form-field">
+          <label for="logradouro">Logradouro</label>
+          <input type="text" id="logradouro" placeholder="Rua, Avenida..." />
+        </div>
+        <div class="form-field">
+          <label for="numero">Número</label>
+          <input type="text" id="numero" placeholder="Ex: 123" />
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="bairro">Bairro</label>
+          <input type="text" id="bairro" placeholder="Ex: Centro" />
+        </div>
+        <div class="form-field">
+          <label for="cidade">Cidade <span class="required">*</span></label>
+          <input type="text" id="cidade" placeholder="Ex: São Paulo" />
+          <span class="field-error" id="erro-cidade">Campo obrigatório</span>
+        </div>
+      </div>
+
+      <div class="form-grid cols-3" style="margin-top: 12px;">
+        <div class="form-field">
+          <label for="estado">Estado</label>
+          <select id="estado">
+            <option value="">UF</option>
+            <option value="AC">AC</option><option value="AL">AL</option>
+            <option value="AM">AM</option><option value="BA">BA</option>
+            <option value="CE">CE</option><option value="DF">DF</option>
+            <option value="ES">ES</option><option value="GO">GO</option>
+            <option value="MA">MA</option><option value="MG">MG</option>
+            <option value="MS">MS</option><option value="MT">MT</option>
+            <option value="PA">PA</option><option value="PB">PB</option>
+            <option value="PE">PE</option><option value="PI">PI</option>
+            <option value="PR">PR</option><option value="RJ">RJ</option>
+            <option value="RN">RN</option><option value="RO">RO</option>
+            <option value="RR">RR</option><option value="RS">RS</option>
+            <option value="SC">SC</option><option value="SE">SE</option>
+            <option value="SP" selected>SP</option><option value="TO">TO</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="cep">CEP</label>
+          <input type="text" id="cep" placeholder="00000-000" maxlength="9" />
+        </div>
+        <div class="form-field">
+          <label for="complemento">Complemento</label>
+          <input type="text" id="complemento" placeholder="Sala, andar..." />
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 3: Contato -->
+    <div class="form-section">
+      <p class="form-section-title">Contato</p>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="email-empresa">E-mail da empresa <span class="required">*</span></label>
+          <input type="email" id="email-empresa" placeholder="rh@empresa.com.br" />
+          <span class="field-error" id="erro-email-empresa">Campo obrigatório</span>
+        </div>
+        <div class="form-field">
+          <label for="telefone">Telefone</label>
+          <input type="text" id="telefone" placeholder="(11) 00000-0000" maxlength="15" />
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 4: Configurações de RH -->
+    <div class="form-section">
+      <p class="form-section-title">Configurações de RH</p>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="dia-pagamento">Dia de pagamento do salário <span class="required">*</span></label>
+          <select id="dia-pagamento">
+            <option value="">Selecione o dia...</option>
+            <option value="1">Dia 1</option>
+            <option value="5">Dia 5</option>
+            <option value="10">Dia 10</option>
+            <option value="15">Dia 15</option>
+            <option value="25">Dia 25</option>
+            <option value="30">Dia 30</option>
+            <option value="ultimo">Último dia útil</option>
+          </select>
+          <span class="field-error" id="erro-dia-pagamento">Campo obrigatório</span>
+        </div>
+        <div class="form-field">
+          <label for="dia-vale">Dia de pagamento do vale</label>
+          <select id="dia-vale">
+            <option value="">Selecione o dia...</option>
+            <option value="1">Dia 1</option>
+            <option value="5">Dia 5</option>
+            <option value="10">Dia 10</option>
+            <option value="15">Dia 15</option>
+            <option value="20">Dia 20</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid cols-1" style="margin-top: 12px;">
+        <div class="form-field">
+          <label>Tipos de vale oferecidos</label>
+          <div class="check-group">
+            <label class="check-item">
+              <input type="checkbox" id="vale-refeicao" checked />
+              Vale refeição
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="vale-transporte" checked />
+              Vale transporte
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="vale-alimentacao" />
+              Vale alimentação
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="plano-saude" />
+              Plano de saúde
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rodapé -->
+    <div class="form-footer">
+      <span class="form-footer-info">Os dados ficam salvos no seu navegador</span>
+      <button class="btn btn-primary" onclick="salvarEmpresa()">
+        Continuar
+        <i class="ti ti-arrow-right"></i>
+      </button>
+    </div>
+
+  </div>
+
+  <script src="../js/storage.js"></script>
+  <script src="../js/setup.js"></script>
+  <script>
+    // Máscara de CNPJ
+    document.getElementById('cnpj').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 14);
+      v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+      v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+      v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+      v = v.replace(/(\d{4})(\d)/, '$1-$2');
+      this.value = v;
+    });
+
+    // Máscara de CEP
+    document.getElementById('cep').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 8);
+      v = v.replace(/(\d{5})(\d)/, '$1-$2');
+      this.value = v;
+    });
+
+    // Máscara de telefone
+    document.getElementById('telefone').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 11);
+      v = v.replace(/^(\d{2})(\d)/, '($1) $2');
+      v = v.replace(/(\d{5})(\d)/, '$1-$2');
+      this.value = v;
+    });
+  </script>
+</body>
+</html>
