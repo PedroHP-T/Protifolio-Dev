@@ -4,73 +4,174 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RH Gestão</title>
-
   <link rel="stylesheet" href="css/reset.css">
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/layout.css">
-
-  <!-- Tabler Icons (ícones usados no menu) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 </head>
 <body>
 
-  <!-- TOPBAR -->
   <header class="topbar">
-    <span class="topbar-logo">RH Gestão</span>
+    <span class="topbar-logo" id="topbar-nome">RH Gestão</span>
     <div class="topbar-right">
       <i class="ti ti-bell"></i>
-      <div class="avatar">AM</div>
+      <div class="avatar" id="avatar-btn" onclick="toggleAvatarMenu()">RH</div>
+
+      <!-- MENU DO AVATAR -->
+      <div class="avatar-menu" id="avatar-menu" style="display:none;">
+
+        <!-- Info da empresa -->
+        <div class="avatar-menu-header">
+          <p class="emp-nome" id="am-nome-empresa">—</p>
+          <p class="emp-cnpj" id="am-cnpj">CNPJ: —</p>
+          <p class="emp-cnpj" id="am-cidade">—</p>
+        </div>
+
+        <!-- Acessibilidade: temas -->
+        <div class="avatar-menu-section">
+          <p class="avatar-menu-label">Tema</p>
+          <div class="theme-opts">
+            <button class="theme-btn active" id="theme-padrao"
+              style="background:var(--cobalt-50);color:var(--cobalt-600);"
+              onclick="setTheme('padrao')">☀️ Padrão</button>
+            <button class="theme-btn" id="theme-dark"
+              style="background:#1E1E1E;color:#FF6B6B;"
+              onclick="setTheme('dark')">🌙 Escuro</button>
+            <button class="theme-btn" id="theme-daltonico"
+              style="background:#FFFF99;color:#3D3000;"
+              onclick="setTheme('daltonico')">👁 Daltonismo</button>
+          </div>
+        </div>
+
+        <!-- Acessibilidade: fonte -->
+        <div class="avatar-menu-section">
+          <p class="avatar-menu-label">Acessibilidade</p>
+          <div class="avatar-menu-item" onclick="toggleFonteGrande()">
+            <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-typography"></i> Fonte grande</span>
+            <div class="toggle" id="toggle-fonte"></div>
+          </div>
+          <div class="avatar-menu-item" onclick="toggleAltoContraste()">
+            <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-contrast"></i> Alto contraste</span>
+            <div class="toggle" id="toggle-contraste"></div>
+          </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="avatar-menu-section">
+          <p class="avatar-menu-label">Sistema</p>
+          <div class="avatar-menu-item" onclick="editarEmpresa()">
+            <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-building"></i> Dados da empresa</span>
+            <i class="ti ti-chevron-right" style="font-size:12px;color:var(--gray-400);"></i>
+          </div>
+          <div class="avatar-menu-item" onclick="resetSistema()" style="color:var(--color-danger);">
+            <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-refresh" style="color:var(--color-danger);"></i> Resetar sistema</span>
+          </div>
+        </div>
+
+      </div>
     </div>
   </header>
 
-  <!-- WRAPPER: sidebar + conteúdo -->
   <div class="wrapper">
-
-    <!-- SIDEBAR -->
     <nav class="sidebar">
       <ul class="menu">
-        <li class="menu-item active" data-page="dashboard">
-          <i class="ti ti-layout-dashboard"></i>
-          <span>Dashboard</span>
-        </li>
-        <li class="menu-item" data-page="funcionarios">
-          <i class="ti ti-users"></i>
-          <span>Funcionários</span>
-        </li>
-        <li class="menu-item" data-page="escala">
-          <i class="ti ti-calendar"></i>
-          <span>Escalas</span>
-        </li>
-        <li class="menu-item" data-page="ponto">
-          <i class="ti ti-clock"></i>
-          <span>Folha de ponto</span>
-        </li>
-        <li class="menu-item" data-page="pagamentos">
-          <i class="ti ti-cash"></i>
-          <span>Pagamentos</span>
-        </li>
+        <li class="menu-item active" data-page="dashboard"><i class="ti ti-layout-dashboard"></i><span>Dashboard</span></li>
+        <li class="menu-item" data-page="funcionarios"><i class="ti ti-users"></i><span>Funcionários</span></li>
+        <li class="menu-item" data-page="escala"><i class="ti ti-calendar"></i><span>Escalas</span></li>
+        <li class="menu-item" data-page="ponto"><i class="ti ti-clock"></i><span>Folha de ponto</span></li>
+        <li class="menu-item" data-page="pagamentos"><i class="ti ti-cash"></i><span>Pagamentos</span></li>
       </ul>
     </nav>
-
-    <!-- CONTEÚDO PRINCIPAL -->
-    <main class="content" id="content">
-      <!-- As páginas são carregadas aqui pelo app.js -->
-    </main>
-
+    <main class="content" id="content"></main>
   </div>
 
   <script src="js/storage.js"></script>
   <script>
-    // Redireciona para setup se necessário
-    (function () {
-      if (!Storage.sistemaConfigurado()) {
-        window.location.href = 'setup/empresa.html';
-        return;
-      }
-      if (Storage.getFuncionarios().length === 0) {
-        window.location.href = 'setup/funcionario.html';
-      }
+    // ── Redirect se não configurado ──
+    (function(){
+      if(!Storage.sistemaConfigurado()){ window.location.href='setup/empresa.html'; return; }
+      if(Storage.getFuncionarios().length===0){ window.location.href='setup/funcionario.html'; }
     })();
+
+    // ── Topbar: nome da empresa e iniciais ──
+    (function(){
+      const emp = Storage.getEmpresa();
+      if(!emp) return;
+      const nome = emp.nomeFantasia || emp.razaoSocial || 'RH';
+      document.getElementById('topbar-nome').textContent = nome;
+      document.getElementById('am-nome-empresa').textContent = emp.razaoSocial || '—';
+      document.getElementById('am-cnpj').textContent = 'CNPJ: ' + (emp.cnpj||'—');
+      document.getElementById('am-cidade').textContent = (emp.endereco?.cidade||'') + (emp.endereco?.estado?' - '+emp.endereco.estado:'');
+      // iniciais
+      const ini = nome.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
+      document.getElementById('avatar-btn').textContent = ini;
+    })();
+
+    // ── Menu avatar ──
+    function toggleAvatarMenu(){
+      const m = document.getElementById('avatar-menu');
+      m.style.display = m.style.display==='none' ? 'block' : 'none';
+    }
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('.topbar-right')){
+        const m = document.getElementById('avatar-menu');
+        if(m) m.style.display='none';
+      }
+    });
+
+    // ── Temas ──
+    const TEMA_KEY = 'rh_tema';
+    function setTheme(tema){
+      document.documentElement.setAttribute('data-theme', tema==='padrao'?'':tema);
+      localStorage.setItem(TEMA_KEY, tema);
+      ['padrao','dark','daltonico'].forEach(t=>{
+        document.getElementById('theme-'+t)?.classList.toggle('active', t===tema);
+      });
+    }
+    // Restaura tema salvo
+    (function(){ const t=localStorage.getItem(TEMA_KEY)||'padrao'; setTheme(t); })();
+
+    // ── Fonte grande ──
+    const FONTE_KEY = 'rh_fonte_grande';
+    function toggleFonteGrande(){
+      const ativo = localStorage.getItem(FONTE_KEY)==='1';
+      const novo = ativo ? '0' : '1';
+      localStorage.setItem(FONTE_KEY, novo);
+      aplicarFonte(novo==='1');
+    }
+    function aplicarFonte(on){
+      document.documentElement.style.fontSize = on ? '16px' : '';
+      document.getElementById('toggle-fonte')?.classList.toggle('on', on);
+    }
+    (function(){ aplicarFonte(localStorage.getItem(FONTE_KEY)==='1'); })();
+
+    // ── Alto contraste ──
+    const CONTRAST_KEY = 'rh_alto_contraste';
+    function toggleAltoContraste(){
+      const ativo = localStorage.getItem(CONTRAST_KEY)==='1';
+      const novo = ativo ? '0' : '1';
+      localStorage.setItem(CONTRAST_KEY, novo);
+      aplicarContraste(novo==='1');
+    }
+    function aplicarContraste(on){
+      document.documentElement.style.filter = on ? 'contrast(1.25)' : '';
+      document.getElementById('toggle-contraste')?.classList.toggle('on', on);
+    }
+    (function(){ aplicarContraste(localStorage.getItem(CONTRAST_KEY)==='1'); })();
+
+    // ── Editar empresa (volta p/ setup) ──
+    function editarEmpresa(){
+      if(confirm('Isso vai abrir o formulário de cadastro da empresa. Continuar?'))
+        window.location.href='setup/empresa.html';
+    }
+
+    // ── Reset ──
+    function resetSistema(){
+      if(confirm('Apagar todos os dados? Esta ação não pode ser desfeita.')){
+        Storage.resetar();
+        window.location.href='setup/empresa.html';
+      }
+    }
   </script>
   <script src="js/app.js"></script>
 </body>

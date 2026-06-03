@@ -1,43 +1,104 @@
-/* variables.css — todas as cores e tokens do sistema */
-
+/* ── TEMA PADRÃO (azul cobalto) ── */
 :root {
-
-  /* Azul cobalto — cor principal */
   --cobalt-900: #0A1A5C;
   --cobalt-800: #152D8A;
-  --cobalt-600: #424B73;   /* topbar, sidebar ativa */
-  --cobalt-400: #4B72EE;   /* botões, links, avatar */
-  --cobalt-200: #9DB6F7;   /* bordas em fundo escuro */
-  --cobalt-50:  #E8EFFE;   /* hover, item selecionado */
+  --cobalt-600: #2347C5;
+  --cobalt-400: #4B72EE;
+  --cobalt-200: #9DB6F7;
+  --cobalt-50:  #E8EFFE;
 
-  /* Cinza — menu e fundos neutros */
-  --gray-100: #BBC7FA;     /* fundo geral, sidebar */
-  --gray-200: #6F7DBF;     /* bordas, divisores */
-  --gray-400: #9CA3AF;     /* textos terciários */
-  --gray-600: #4d5361;     /* textos secundários */
-  --gray-900: #262711;     /* textos principais */
+  --gray-100: #F2F3F5;
+  --gray-200: #E4E6EA;
+  --gray-400: #9CA3AF;
+  --gray-600: #6B7280;
+  --gray-900: #111827;
+  --white:    #FFFFFF;
 
-  /* Branco */
-  --white: #ffffff;        /* cards, conteúdo */
-
-  /* Semânticas (status) */
   --color-success: #16A34A;
   --color-warning: #D97706;
   --color-danger:  #DC2626;
 
-  /* Espaçamentos */
-  --space-xs:  4px;
-  --space-sm:  8px;
-  --space-md:  12px;
-  --space-lg:  16px;
-  --space-xl:  24px;
+  --metric-bg:    #F0F4FF;
+  --metric-value: #1A3AA8;
+  --metric-label: #5B6FA6;
 
-  /* Bordas */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
 
-  /* Alturas fixas de layout */
   --topbar-height: 48px;
   --sidebar-width: 210px;
+
+  /* Tokens semânticos — usados no layout (troque o tema aqui embaixo) */
+  --color-topbar:       var(--cobalt-600);
+  --color-topbar-text:  #ffffff;
+  --color-sidebar:      var(--gray-100);
+  --color-sidebar-border: var(--gray-200);
+  --color-active-bg:    var(--cobalt-50);
+  --color-active-text:  var(--cobalt-600);
+  --color-btn-primary:  var(--cobalt-600);
+  --color-content-bg:   var(--white);
+  --color-page-bg:      var(--gray-100);
+}
+
+/* ── TEMA ESCURO (vermelho + cinza escuro) ── */
+[data-theme="dark"] {
+  --gray-100: #1E1E1E;
+  --gray-200: #2E2E2E;
+  --gray-400: #888888;
+  --gray-600: #AAAAAA;
+  --gray-900: #F0F0F0;
+  --white:    #141414;
+
+  --metric-bg:    #2A1A1A;
+  --metric-value: #FF6B6B;
+  --metric-label: #CC8888;
+
+  --color-topbar:       #7A1A1A;
+  --color-topbar-text:  #FFE0E0;
+  --color-sidebar:      #1A1A1A;
+  --color-sidebar-border: #2E2E2E;
+  --color-active-bg:    #3A1A1A;
+  --color-active-text:  #FF6B6B;
+  --color-btn-primary:  #9B1C1C;
+  --color-content-bg:   #141414;
+  --color-page-bg:      #1A1A1A;
+
+  --cobalt-600: #C0392B;
+  --cobalt-400: #E74C3C;
+  --cobalt-50:  #3A1A1A;
+}
+
+/* ── TEMA DALTÔNICO (alto contraste amarelo/preto) ── */
+[data-theme="daltonico"] {
+  --gray-100: #F5F5DC;
+  --gray-200: #D4D4AA;
+  --gray-400: #777755;
+  --gray-600: #444422;
+  --gray-900: #000000;
+  --white:    #FFFEF0;
+
+  --metric-bg:    #FFFFF0;
+  --metric-value: #5C4A00;
+  --metric-label: #7A6600;
+
+  --color-topbar:       #3D3000;
+  --color-topbar-text:  #FFEE00;
+  --color-sidebar:      #F5F5DC;
+  --color-sidebar-border: #BBBB88;
+  --color-active-bg:    #FFFF99;
+  --color-active-text:  #3D3000;
+  --color-btn-primary:  #3D3000;
+  --color-content-bg:   #FFFEF0;
+  --color-page-bg:      #F5F5DC;
+
+  --cobalt-600: #3D3000;
+  --cobalt-400: #5C4A00;
+  --cobalt-50:  #FFFF99;
 }
