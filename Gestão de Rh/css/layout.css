@@ -1,3 +1,5 @@
+/* layout.css */
+
 body {
   background: var(--color-page-bg, var(--gray-100));
   color: var(--gray-900);
@@ -213,3 +215,24 @@ body {
 .btn:hover { opacity: 0.85; }
 .btn-primary { background: var(--color-btn-primary, var(--cobalt-600)); color: #fff; }
 .btn-secondary { background: var(--gray-100); color: var(--gray-900); border: 1px solid var(--gray-200); }
+
+/* ── FONTE GRANDE ── */
+.fonte-grande,
+.fonte-grande .menu-item,
+.fonte-grande .page-title,
+.fonte-grande .card,
+.fonte-grande .metric-card .label,
+.fonte-grande .metric-card .value,
+.fonte-grande input,
+.fonte-grande select,
+.fonte-grande textarea,
+.fonte-grande button,
+.fonte-grande td,
+.fonte-grande th,
+.fonte-grande p,
+.fonte-grande span,
+.fonte-grande label {
+  font-size: 115% !important;
+}
+.fonte-grande .topbar-logo { font-size: 17px !important; }
+.fonte-grande .metric-card .value { font-size: 26px !important; }
