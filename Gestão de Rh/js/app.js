@@ -1,3 +1,5 @@
+// app.js — todas as páginas do sistema RH
+
 const pages = {
   dashboard:    pageDashboard,
   funcionarios: pageFuncionarios,
@@ -8,10 +10,14 @@ const pages = {
 
 function navigateTo(k){
   document.querySelectorAll('.menu-item').forEach(i=>i.classList.toggle('active',i.dataset.page===k));
+  document.querySelectorAll('.bottom-nav-item').forEach(i=>i.classList.toggle('active',i.dataset.page===k));
   const el=document.getElementById('content'); if(!el) return;
   if(pages[k]) el.innerHTML=pages[k]();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
-document.querySelectorAll('.menu-item').forEach(i=>i.addEventListener('click',()=>navigateTo(i.dataset.page)));
+document.querySelectorAll('.menu-item').forEach(i=>{
+  i.addEventListener('click',()=>{ navigateTo(i.dataset.page); fecharSidebar && fecharSidebar(); });
+});
 
 // ── HELPERS ──
 const fmtR=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -672,3 +678,5 @@ function pagePagamentos(){
       </div>
     </div>`;
 }
+
+navigateTo('dashboard');
