@@ -676,23 +676,49 @@ async function reEscala(idx, fsList) {
 
 // ══ PONTO ═════════════════════════════════════════════════════
 async function pagePonto() {
-  const fs=await DB.getFuncionarios(), hj=new Date();
-  const mesAno=hj.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-  const aprovsPend=(await DB.getAprovacoes('pendente'))||[];
-  const opts=fs.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
-  const pontoHtml = fs.length ? await buildPontoTable(fs[0].id, hj.getFullYear(), hj.getMonth()+1) : '';
+  const fs = await DB.getFuncionarios();
+  const hj = new Date();
+  const mesAno = hj.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const aprovsPend = (await DB.getAprovacoes('pendente').catch(()=>[])) || [];
+  const opts = fs.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
 
-  return `
+  // Monta HTML da página primeiro, sem aguardar buildPontoTable
+  const html = `
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-lg);">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Folha de ponto</h1><p class="page-subtitle" style="margin:0;">${mesAno}</p></div>
+    <div><h1 class="page-title" style="margin-bottom:2px;">Folha de ponto</h1>
+    <p class="page-subtitle" style="margin:0;">${mesAno}</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      ${fs.length?`<select id="sel-ponto" class="input" style="width:200px;" onchange="rePonto(this.value)">${opts}</select>`:''}
+      ${fs.length ? `<select id="sel-ponto" class="input" style="width:200px;" onchange="rePonto(this.value)">${opts}</select>` : ''}
       <button class="btn btn-secondary btn-sm" onclick="exportarPontoCsv()"><i class="ti ti-download"></i> Exportar</button>
     </div>
   </div>
-  ${aprovsPend.length?`<div class="alert alert-warning" style="margin-bottom:12px;"><i class="ti ti-clock-edit"></i><span>${aprovsPend.length} correção(ões) aguardando aprovação</span><button class="btn btn-sm btn-secondary" style="margin-left:auto;" onclick="verAprovacoes()">Ver</button></div>`:''}
-  <div id="ponto-corpo">${pontoHtml}</div>
+  ${aprovsPend.length ? `<div class="alert alert-warning" style="margin-bottom:12px;"><i class="ti ti-clock-edit"></i><span>${aprovsPend.length} correção(ões) aguardando aprovação</span><button class="btn btn-sm btn-secondary" style="margin-left:auto;" onclick="verAprovacoes()">Ver</button></div>` : ''}
+  <div id="ponto-corpo">
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:40px 0;">
+      <div style="width:24px;height:24px;border:3px solid var(--cobalt-200);border-top-color:var(--cobalt-600);border-radius:50%;animation:spin .7s linear infinite;"></div>
+      <span style="color:var(--color-text-muted);font-size:13px;">Carregando registros...</span>
+    </div>
+  </div>
   <div id="modal-aprovacoes"></div>`;
+
+  // Retorna o HTML imediatamente, depois carrega a tabela
+  setTimeout(async () => {
+    if (fs.length) {
+      try {
+        const tabela = await buildPontoTable(fs[0].id, hj.getFullYear(), hj.getMonth()+1);
+        const el = document.getElementById('ponto-corpo');
+        if (el) el.innerHTML = tabela;
+      } catch(e) {
+        const el = document.getElementById('ponto-corpo');
+        if (el) el.innerHTML = `<div class="alert alert-danger"><i class="ti ti-alert-circle"></i> Erro ao carregar ponto: ${e.message}</div>`;
+      }
+    } else {
+      const el = document.getElementById('ponto-corpo');
+      if (el) el.innerHTML = '<div class="card"><p style="font-size:13px;color:var(--color-text-muted);">Nenhum funcionário cadastrado.</p></div>';
+    }
+  }, 50);
+
+  return html;
 }
 
 async function buildPontoTable(fid, ano, mes) {

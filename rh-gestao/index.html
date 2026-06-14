@@ -611,48 +611,78 @@ async function fazerRecuperacao() {
 
 async function iniciarSistema() {
   const profile = Auth.currentUser();
-  if (!profile) return;
+  if (!profile) { mostrarTelaLogin(); return; }
 
+  // Preenche topbar
   const ini = (profile.nome||'RH').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
   document.getElementById('avatar-btn').textContent   = ini;
   document.getElementById('am-user-nome').textContent = profile.nome || '—';
   document.getElementById('am-user-role').textContent = Auth.roleLabel(profile.role);
-  if (profile.role === 'admin') document.getElementById('menu-admin-link').style.display = 'block';
+  if (profile.role === 'admin') {
+    const adminLink = document.getElementById('menu-admin-link');
+    if (adminLink) adminLink.style.display = 'block';
+  }
+
+  // Mostra elementos do sistema (que ficaram ocultos durante o login)
+  const wrapper = document.querySelector('.wrapper');
+  const topbar  = document.querySelector('.topbar');
+  const infobar = document.querySelector('.topbar-info');
+  const bn      = document.querySelector('.bottom-nav');
+  if (wrapper) wrapper.style.display = '';
+  if (topbar)  topbar.style.display  = '';
+  if (infobar) infobar.style.display = '';
+  if (bn)      bn.style.display      = '';
 
   try {
     const [emp, fs] = await Promise.all([DB.getEmpresa(), DB.getFuncionarios()]);
-    if (emp) {
-      const nome = emp.nome_fantasia || emp.razao_social || 'RH Gestão';
-      document.getElementById('topbar-nome').textContent = nome;
-      document.getElementById('am-empresa').textContent  = emp.razao_social || '—';
-      document.getElementById('ti-razao').textContent    = emp.razao_social || '—';
-      document.getElementById('ti-cnpj').textContent     = emp.cnpj || '—';
-      document.getElementById('ti-contratos').textContent = fs.length;
-    } else {
-      // Empresa não cadastrada: abre cadastro inline
-      navigateTo('setup-empresa');
-      return;
-    }
-    if (!fs.length && ['admin','rh'].includes(profile.role)) {
-      navigateTo('setup-funcionario');
-      return;
-    }
-  } catch(e) {}
 
+    if (!emp) {
+      // Redireciona para cadastro de empresa
+      location.href = 'setup/empresa.html';
+      return;
+    }
+
+    // Preenche infobar com dados da empresa
+    const nome = emp.nome_fantasia || emp.razao_social || 'RH Gestão';
+    document.getElementById('topbar-nome').textContent  = nome;
+    document.getElementById('am-empresa').textContent   = emp.razao_social || '—';
+    document.getElementById('ti-razao').textContent     = emp.razao_social || '—';
+    document.getElementById('ti-cnpj').textContent      = emp.cnpj || '—';
+    document.getElementById('ti-contratos').textContent = fs.length;
+    if (fs.length) {
+      const ents = fs.map(f=>f.entrada).filter(Boolean).sort();
+      const sais = fs.map(f=>f.saida).filter(Boolean).sort();
+      document.getElementById('ti-horario').textContent =
+        (ents[0] && sais[sais.length-1]) ? `${ents[0]} – ${sais[sais.length-1]}` : '—';
+    }
+
+    if (!fs.length && ['admin','rh'].includes(profile.role)) {
+      // Redireciona para cadastro de funcionário
+      location.href = 'setup/funcionario.html';
+      return;
+    }
+  } catch(e) {
+    console.error('[iniciarSistema]', e.message);
+  }
+
+  // Aplica preferências salvas
   setTheme(localStorage.getItem('rh_tema') || 'padrao');
   aplicarFonte(localStorage.getItem('rh_fonte_grande') === '1');
   aplicarContraste(localStorage.getItem('rh_alto_contraste') === '1');
   renderNotifs();
   navigateTo('dashboard');
 }
-  const bg = {ok:'#166534',err:'#991B1B',info:'#075985'}[tipo]||'#166534';
-  const ico = {ok:'ti-check',err:'ti-x',info:'ti-info-circle'}[tipo]||'ti-check';
+
+// Toast global
+function toast(msg, tipo='ok') {
+  const bg  = {ok:'#166534',err:'#991B1B',info:'#075985'}[tipo] || '#166534';
+  const ico = {ok:'ti-check',err:'ti-x',info:'ti-info-circle'}[tipo] || 'ti-check';
   const t = document.createElement('div');
   t.innerHTML = `<i class="ti ${ico}" style="margin-right:6px;flex-shrink:0;"></i><span>${msg}</span>`;
   t.style.cssText = `position:fixed;bottom:72px;right:16px;background:${bg};color:#fff;padding:10px 16px;border-radius:var(--radius-md);font-size:13px;z-index:9999;display:flex;align-items:center;box-shadow:var(--shadow-lg);max-width:min(320px,calc(100vw - 32px));animation:fadeDown .2s ease;`;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2800);
-
+}
 window.toast = toast;
 </script>
 </body>

@@ -39,12 +39,75 @@
 
 <header class="topbar">
   <div style="display:flex;align-items:center;gap:10px;">
-    <button class="menu-toggle" id="menu-toggle-btn"><i class="ti ti-menu-2"></i></button>
-    <span class="topbar-logo">⚙️ Administração</span>
+    <button class="menu-toggle" id="menu-toggle-btn" aria-label="Abrir menu"><i class="ti ti-menu-2"></i></button>
+    <a href="../index.html" style="text-decoration:none;">
+      <span class="topbar-logo" style="color:var(--color-topbar-text);">⚙️ Administração</span>
+    </a>
   </div>
   <div class="topbar-right">
-    <a href="../index.html" class="btn btn-secondary btn-sm"><i class="ti ti-arrow-left"></i> Voltar ao sistema</a>
-    <div class="avatar" id="avatar-btn" style="cursor:default;" title="">AD</div>
+    <!-- Sino de notificações -->
+    <div style="position:relative;">
+      <i class="ti ti-bell" style="font-size:18px;color:rgba(255,255,255,.8);cursor:pointer;" onclick="toggleNotifAdmin()"></i>
+      <span id="notif-badge-admin" style="display:none;position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;background:#EF4444;border-radius:8px;font-size:9px;font-weight:700;color:#fff;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;"></span>
+      <div id="notif-panel-admin" style="display:none;position:absolute;top:calc(100% + 12px);right:-8px;width:300px;background:var(--color-card-bg);border:1px solid var(--color-card-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);z-index:600;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;">
+          <p style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin:0;">Notificações</p>
+          <button onclick="document.getElementById('notif-panel-admin').style.display='none'" style="font-size:11px;color:var(--cobalt-600);background:none;border:none;cursor:pointer;">Fechar</button>
+        </div>
+        <div id="notif-lista-admin" style="padding:16px;font-size:13px;color:var(--color-text-muted);">Carregando...</div>
+      </div>
+    </div>
+
+    <!-- Avatar com menu completo -->
+    <div class="avatar" id="avatar-btn" onclick="toggleAvatarAdmin()">AD</div>
+    <div class="avatar-menu" id="avatar-menu-admin" style="display:none;">
+
+      <!-- Info do usuário -->
+      <div class="avatar-menu-header">
+        <p class="emp-nome" id="admin-user-nome">—</p>
+        <p class="emp-cnpj" id="admin-user-role">—</p>
+        <p class="emp-cnpj" id="admin-emp-nome">—</p>
+      </div>
+
+      <!-- Tema -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Tema</p>
+        <div class="theme-opts">
+          <button class="theme-btn active" id="admin-theme-padrao" style="background:var(--cobalt-50);color:var(--cobalt-600);" onclick="setThemeAdmin('padrao')">☀️ Padrão</button>
+          <button class="theme-btn" id="admin-theme-dark" style="background:#1E1E1E;color:#FF6B6B;" onclick="setThemeAdmin('dark')">🌙 Escuro</button>
+        </div>
+      </div>
+
+      <!-- Acessibilidade -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Acessibilidade</p>
+        <div class="avatar-menu-item" onclick="toggleFonteAdmin()">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-typography"></i> Fonte grande</span>
+          <div class="toggle" id="admin-toggle-fonte"></div>
+        </div>
+        <div class="avatar-menu-item" onclick="toggleContrasteAdmin()">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-contrast"></i> Alto contraste</span>
+          <div class="toggle" id="admin-toggle-contraste"></div>
+        </div>
+      </div>
+
+      <!-- Navegação -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Navegação</p>
+        <div class="avatar-menu-item" onclick="location.href='../index.html'">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-layout-dashboard"></i> Voltar ao sistema</span>
+          <i class="ti ti-chevron-right" style="font-size:12px;color:var(--color-text-muted);"></i>
+        </div>
+      </div>
+
+      <!-- Conta -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Conta</p>
+        <div class="avatar-menu-item" onclick="fazerLogoutAdmin()" style="color:var(--color-danger);">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-logout" style="color:var(--color-danger);"></i> Sair</span>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -80,6 +143,15 @@
   </main>
 </div>
 
+<!-- BOTTOM NAV mobile — área administrativa -->
+<nav class="bottom-nav" id="bottom-nav" style="display:none;">
+  <div class="bottom-nav-item active" data-sec="metricas"><i class="ti ti-chart-bar"></i><span>Métricas</span></div>
+  <div class="bottom-nav-item" data-sec="usuarios"><i class="ti ti-users"></i><span>Usuários</span></div>
+  <div class="bottom-nav-item" data-sec="aprovacoes"><i class="ti ti-clipboard-check"></i><span>Aprovações</span></div>
+  <div class="bottom-nav-item" data-sec="auditoria"><i class="ti ti-history"></i><span>Logs</span></div>
+  <div class="bottom-nav-item" data-sec="configuracoes"><i class="ti ti-settings"></i><span>Config.</span></div>
+</nav>
+
 <div id="modal-root"></div>
 
 <script>
@@ -88,20 +160,133 @@
   const ok = await Auth.protegerRota(['admin']);
   if(!ok) return;
   const profile = Auth.currentUser();
-  document.getElementById('avatar-btn').textContent = (profile.nome||'AD').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
+  if(profile) {
+    const ini = (profile.nome||'AD').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
+    document.getElementById('avatar-btn').textContent     = ini;
+    document.getElementById('admin-user-nome').textContent = profile.nome || '—';
+    document.getElementById('admin-user-role').textContent = {admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[profile.role]||profile.role;
+    try {
+      const emp = await DB.getEmpresa();
+      document.getElementById('admin-emp-nome').textContent = emp?.nome_fantasia || emp?.razao_social || '—';
+    } catch(e){}
+  }
+  // Aplica preferências salvas
+  setThemeAdmin(localStorage.getItem('rh_tema')||'padrao');
+  aplicarFonteAdmin(localStorage.getItem('rh_fonte_grande')==='1');
+  aplicarContrasteAdmin(localStorage.getItem('rh_alto_contraste')==='1');
+  // Ativa bottom nav em mobile
+  if(window.innerWidth <= 768) document.getElementById('bottom-nav').style.display='flex';
   initAdmin();
 })();
 
-// ── SIDEBAR MOBILE ────────────────────────────────────────────
-document.getElementById('menu-toggle-btn').addEventListener('click',e=>{e.stopPropagation();const sb=document.getElementById('sidebar');sb.classList.toggle('open');document.getElementById('sidebar-overlay').classList.toggle('visible');});
-function fecharSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebar-overlay').classList.remove('visible');}
-document.querySelectorAll('.sidebar .menu-item').forEach(item=>{
-  item.addEventListener('click',()=>{
-    document.querySelectorAll('.menu-item').forEach(i=>i.classList.remove('active'));
-    item.classList.add('active');
-    fecharSidebar();
-    renderSecao(item.dataset.sec);
+// ── MENU AVATAR ───────────────────────────────────────────────
+function toggleAvatarAdmin(){
+  const m=document.getElementById('avatar-menu-admin');
+  document.getElementById('notif-panel-admin').style.display='none';
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+function toggleNotifAdmin(){
+  const p=document.getElementById('notif-panel-admin');
+  document.getElementById('avatar-menu-admin').style.display='none';
+  p.style.display=p.style.display==='none'?'block':'none';
+  if(p.style.display==='block') carregarNotifAdmin();
+}
+async function carregarNotifAdmin(){
+  const el=document.getElementById('notif-lista-admin');
+  try{
+    const aprovs=await DB.getAprovacoes('pendente');
+    if(!aprovs||!aprovs.length){el.textContent='Nenhuma notificação pendente.';return;}
+    el.innerHTML=aprovs.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--color-card-border);font-size:12px;">
+      <p style="margin:0;font-weight:600;color:var(--color-text-primary);">${a.tipo}</p>
+      <p style="margin:0;color:var(--color-text-secondary);">${a.obs||'—'}</p>
+    </div>`).join('');
+  }catch(e){el.textContent='Erro ao carregar.';}
+}
+
+// ── TEMAS (sincroniza com o sistema principal via localStorage) ─
+function setThemeAdmin(tema){
+  document.documentElement.setAttribute('data-theme',tema==='padrao'?'':tema);
+  localStorage.setItem('rh_tema',tema);
+  ['padrao','dark'].forEach(t=>{
+    const el=document.getElementById('admin-theme-'+t);
+    if(el)el.classList.toggle('active',t===tema);
   });
+}
+function toggleFonteAdmin(){
+  const on=localStorage.getItem('rh_fonte_grande')!=='1';
+  localStorage.setItem('rh_fonte_grande',on?'1':'0');
+  aplicarFonteAdmin(on);
+}
+function aplicarFonteAdmin(on){
+  document.body.classList.toggle('fonte-grande',on);
+  document.getElementById('admin-toggle-fonte')?.classList.toggle('on',on);
+}
+function toggleContrasteAdmin(){
+  const on=localStorage.getItem('rh_alto_contraste')!=='1';
+  localStorage.setItem('rh_alto_contraste',on?'1':'0');
+  aplicarContrasteAdmin(on);
+}
+function aplicarContrasteAdmin(on){
+  document.documentElement.style.filter=on?'contrast(1.28)':'';
+  document.getElementById('admin-toggle-contraste')?.classList.toggle('on',on);
+}
+
+async function fazerLogoutAdmin(){
+  if(!confirm('Deseja sair do sistema?'))return;
+  await Auth.logout();
+  location.href='../index.html';
+}
+
+// ── FECHAR MENUS AO CLICAR FORA ──────────────────────────────
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.topbar-right')&&!e.target.closest('#menu-toggle-btn')){
+    const am=document.getElementById('avatar-menu-admin');
+    const np=document.getElementById('notif-panel-admin');
+    if(am)am.style.display='none';
+    if(np)np.style.display='none';
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    fecharSidebar();
+    document.getElementById('avatar-menu-admin').style.display='none';
+    document.getElementById('notif-panel-admin').style.display='none';
+  }
+});
+
+// ── SIDEBAR MOBILE ────────────────────────────────────────────
+document.getElementById('menu-toggle-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('visible');
+});
+
+function fecharSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('visible');
+}
+
+// Navegação sidebar — funciona em desktop e mobile
+function navAdmin(sec) {
+  document.querySelectorAll('.menu-item, .bottom-nav-item').forEach(i => {
+    i.classList.toggle('active', i.dataset.sec === sec);
+  });
+  fecharSidebar();
+  renderSecao(sec);
+}
+
+document.querySelectorAll('.sidebar .menu-item').forEach(item => {
+  item.addEventListener('click', () => navAdmin(item.dataset.sec));
+});
+
+document.querySelectorAll('.bottom-nav-item').forEach(item => {
+  item.addEventListener('click', () => navAdmin(item.dataset.sec));
+});
+
+// Responsividade: exibe/oculta bottom nav ao redimensionar
+window.addEventListener('resize', () => {
+  const bn = document.getElementById('bottom-nav');
+  if(bn) bn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
 });
 
 // ── UTILITÁRIOS ───────────────────────────────────────────────

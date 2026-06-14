@@ -1,64 +1,33 @@
 // db.js — camada de acesso ao banco de dados (Supabase)
 // Substitui o localStorage; mantém a mesma interface do storage.js anterior
 
-const supabase = window.supabaseClient;
-
-if (!supabase) {
-  console.error(
-    '[DB] Cliente Supabase não encontrado. Verifique se js/supabase.js está carregando ANTES do db.js'
-  );
-}
-
 const DB = {
 
   // ── UTILITÁRIOS ──────────────────────────────────────────────
 
   async _query(fn) {
     try {
-
-      if (!supabase) {
-        throw new Error('Supabase Client não inicializado');
-      }
-
-      if (typeof supabase.from !== 'function') {
-        throw new Error('Supabase Client inválido');
-      }
-
       const res = await fn();
-
-      if (res?.error) {
-        throw res.error;
-      }
-
-      return res?.data;
-
+      if (res.error) throw res.error;
+      return res.data;
     } catch (err) {
-      console.error('[DB]', err);
+      console.error('[DB]', err.message);
       throw err;
     }
   },
 
   async _log(acao, tabela, id, antes, depois) {
-
-    if (!supabase) return;
-
-    const user = Auth?.currentUser?.();
-
+    const user = Auth.currentUser();
     if (!user) return;
-
-    try {
-      await supabase.from('audit_logs').insert({
-        user_id: user.id,
-        user_nome: user.nome,
-        acao,
-        tabela,
-        registro_id: id,
-        dados_antes: antes || null,
-        dados_depois: depois || null,
-      });
-    } catch (e) {
-      console.warn('[AUDIT]', e);
-    }
+    await supabase.from('audit_logs').insert({
+      user_id: user.id,
+      user_nome: user.nome,
+      acao,
+      tabela,
+      registro_id: id,
+      dados_antes: antes || null,
+      dados_depois: depois || null,
+    });
   },
 
   // ── EMPRESA ──────────────────────────────────────────────────
@@ -138,10 +107,30 @@ const DB = {
   },
 
   async savePonto(funcionarioId, data, campos) {
-    const dataISO = typeof data === 'string' ? data :
-      `${data.ano}-${String(data.mes).padStart(2,'0')}-${String(data.dia).padStart(2,'0')}`;
-    const payload = { funcionario_id: funcionarioId, data: dataISO, ...campos, updated_at: new Date().toISOString() };
-    const res = await supabase.from('ponto').upsert(payload, { onConflict: 'funcionario_id,data' }).select().single();
+    // data pode ser string ISO ou objeto {ano, mes, dia}
+    let dataISO;
+    if (typeof data === 'string') {
+      dataISO = data;
+    } else {
+      const a = data.ano, m = String(data.mes).padStart(2,'0'), d = String(data.dia).padStart(2,'0');
+      dataISO = `${a}-${m}-${d}`;
+    }
+    // Busca registro existente para fazer merge dos campos
+    const { data: existente } = await supabase.from('ponto')
+      .select('*').eq('funcionario_id', funcionarioId).eq('data', dataISO).single();
+
+    const payload = {
+      funcionario_id: funcionarioId,
+      data: dataISO,
+      ...(existente || {}),  // preserva campos já salvos
+      ...campos,             // sobrescreve só o campo alterado
+      updated_at: new Date().toISOString(),
+    };
+    delete payload.id;       // remove id para upsert funcionar pelo conflito
+
+    const res = await supabase.from('ponto')
+      .upsert(payload, { onConflict: 'funcionario_id,data' })
+      .select().single();
     if (res.error) throw res.error;
     return res.data;
   },
