@@ -121,6 +121,11 @@ async function pageDashboard() {
         ].map(a=>`<button class="btn btn-secondary" style="justify-content:flex-start;gap:8px;" onclick="${a.fn}"><i class="ti ${a.ico}" style="color:var(--cobalt-400);font-size:16px;"></i><span style="font-size:12px;">${a.txt}</span></button>`).join('')}
       </div>
     </div>
+    <div class="card">
+      <p class="section-label" style="margin-bottom:4px;">Equipe hoje</p>
+      ${equipeHoje || '<p style="font-size:13px;color:var(--color-text-muted);padding:12px 0;">Nenhum funcionário ativo.</p>'}
+      ${fs.filter(f=>f.status!=='inativo').length > 5 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;" onclick="navigateTo('funcionarios')">Ver todos</button>` : ''}
+    </div>
   </div>
   ${tplModalFunc()}`;
 }
@@ -682,99 +687,159 @@ async function pagePonto() {
   const aprovsPend = (await DB.getAprovacoes('pendente').catch(()=>[])) || [];
   const opts = fs.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
 
-  // Monta HTML da página primeiro, sem aguardar buildPontoTable
-  const html = `
+  if (!fs.length) {
+    return `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-lg);">
+      <div><h1 class="page-title" style="margin-bottom:2px;">Folha de ponto</h1>
+      <p class="page-subtitle" style="margin:0;">${mesAno}</p></div>
+    </div>
+    <div class="card"><p style="font-size:13px;color:var(--color-text-muted);">Nenhum funcionário cadastrado.</p></div>`;
+  }
+
+  // Carrega a tabela do primeiro funcionário ANTES de montar o HTML
+  let tabelaInicial = '';
+  try {
+    tabelaInicial = await buildPontoTable(fs[0].id, hj.getFullYear(), hj.getMonth()+1);
+  } catch(e) {
+    tabelaInicial = `<div class="alert alert-danger"><i class="ti ti-alert-circle"></i> Erro ao carregar: ${e.message}</div>`;
+  }
+
+  return `
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-lg);">
     <div><h1 class="page-title" style="margin-bottom:2px;">Folha de ponto</h1>
     <p class="page-subtitle" style="margin:0;">${mesAno}</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      ${fs.length ? `<select id="sel-ponto" class="input" style="width:200px;" onchange="rePonto(this.value)">${opts}</select>` : ''}
+      <select id="sel-ponto" class="input" style="width:200px;" onchange="rePonto(this.value)">${opts}</select>
       <button class="btn btn-secondary btn-sm" onclick="exportarPontoCsv()"><i class="ti ti-download"></i> Exportar</button>
     </div>
   </div>
   ${aprovsPend.length ? `<div class="alert alert-warning" style="margin-bottom:12px;"><i class="ti ti-clock-edit"></i><span>${aprovsPend.length} correção(ões) aguardando aprovação</span><button class="btn btn-sm btn-secondary" style="margin-left:auto;" onclick="verAprovacoes()">Ver</button></div>` : ''}
-  <div id="ponto-corpo">
-    <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:40px 0;">
-      <div style="width:24px;height:24px;border:3px solid var(--cobalt-200);border-top-color:var(--cobalt-600);border-radius:50%;animation:spin .7s linear infinite;"></div>
-      <span style="color:var(--color-text-muted);font-size:13px;">Carregando registros...</span>
-    </div>
-  </div>
+  <div id="ponto-corpo">${tabelaInicial}</div>
   <div id="modal-aprovacoes"></div>`;
-
-  // Retorna o HTML imediatamente, depois carrega a tabela
-  setTimeout(async () => {
-    if (fs.length) {
-      try {
-        const tabela = await buildPontoTable(fs[0].id, hj.getFullYear(), hj.getMonth()+1);
-        const el = document.getElementById('ponto-corpo');
-        if (el) el.innerHTML = tabela;
-      } catch(e) {
-        const el = document.getElementById('ponto-corpo');
-        if (el) el.innerHTML = `<div class="alert alert-danger"><i class="ti ti-alert-circle"></i> Erro ao carregar ponto: ${e.message}</div>`;
-      }
-    } else {
-      const el = document.getElementById('ponto-corpo');
-      if (el) el.innerHTML = '<div class="card"><p style="font-size:13px;color:var(--color-text-muted);">Nenhum funcionário cadastrado.</p></div>';
-    }
-  }, 50);
-
-  return html;
 }
 
 async function buildPontoTable(fid, ano, mes) {
-  const f = await DB.getFuncionarioById(fid); if (!f) return '';
-  const hj=new Date(), dim=new Date(ano,mes,0).getDate();
-  const registros = await DB.getPontoMes(fid, ano, mes);
+  // mes = 1-based (1=jan, 6=jun)
+  const f = await DB.getFuncionarioById(fid);
+  if (!f) return '<div class="alert alert-danger"><i class="ti ti-alert-circle"></i> Funcionário não encontrado.</div>';
+
+  const hj  = new Date();
+  const dim  = new Date(ano, mes, 0).getDate(); // último dia do mês
+  const hoje0 = new Date(hj.getFullYear(), hj.getMonth(), hj.getDate()); // hoje sem hora
+
+  // Busca registros do mês
+  let registros = [];
+  try { registros = await DB.getPontoMes(fid, ano, mes) || []; } catch(e) {}
   const regMap = {};
-  (registros||[]).forEach(r => { regMap[parseInt(r.data.split('-')[2])] = r; });
-  const dnf=['domingo','segunda','terca','quarta','quinta','sexta','sabado'];
-  let linhas='', totTrab=0, totExt=0;
+  registros.forEach(r => {
+    const dia = parseInt((r.data||'').split('-')[2]);
+    if (dia) regMap[dia] = r;
+  });
 
-  for (let d=1; d<=dim; d++) {
-    const dt=new Date(ano,mes-1,d), ds=dt.getDay();
-    const folga=(f.dias_folga||[]).includes(dnf[ds]);
-    const futuro=dt>hj, isH=(d===hj.getDate()&&mes===hj.getMonth()+1&&ano===hj.getFullYear());
-    const r=regMap[d]||{};
-    const minTrab=calcHorasTrabalhadas({entrada:r.entrada,saida:r.saida,saida_almoco:r.saida_almoco,retorno_almoco:r.retorno_almoco});
-    let extras=0;
-    if(r.entrada&&r.saida&&f.entrada&&f.saida){let prev=tm(f.saida)-tm(f.entrada);if(prev<0)prev+=1440;extras=minTrab-prev;}
-    totTrab+=minTrab; totExt+=extras;
-    const na=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][ds];
-    const bg=folga?'background:var(--gray-50);':isH?'background:var(--cobalt-50);':'';
-    const pontoId=r.id||'';
+  const dnf = ['domingo','segunda','terca','quarta','quinta','sexta','sabado'];
+  const dna = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let linhas = '', totTrab = 0, totExt = 0;
 
-    if(folga) { linhas+=`<tr style="${bg}"><td style="padding:7px 10px;font-size:12px;color:var(--color-text-muted);">${String(d).padStart(2,'0')} ${na}</td><td colspan="4" style="padding:7px 10px;text-align:center;"><span class="badge badge-neutral">Folga</span></td><td></td><td></td><td></td></tr>`; continue; }
-    if(futuro) { linhas+=`<tr style="${bg}"><td style="padding:7px 10px;font-size:12px;color:var(--color-text-secondary);">${String(d).padStart(2,'0')} ${na}</td><td colspan="4" style="padding:7px 10px;text-align:center;color:var(--color-text-muted);font-size:12px;">—</td><td></td><td></td><td></td></tr>`; continue; }
+  for (let d = 1; d <= dim; d++) {
+    const dt  = new Date(ano, mes - 1, d);
+    const ds  = dt.getDay();
+    const na  = dna[ds];
+    const dk  = dnf[ds];
+    const r   = regMap[d] || {};
+    const isH = (d === hj.getDate() && mes === hj.getMonth() + 1 && ano === hj.getFullYear());
+    const folga   = (f.dias_folga || []).includes(dk);
+    const futuro  = dt > hoje0;
 
-    const ti=(campo,val)=>`<td style="padding:3px 4px;"><input type="time" value="${val||''}" style="width:82px;height:30px;padding:0 6px;border:1.5px solid var(--color-card-border);border-radius:var(--radius-md);font-size:12px;color:var(--color-text-primary);background:var(--color-input-bg);" onchange="salvarBatida('${fid}','${ano}','${mes}','${d}','${campo}',this.value)"/></td>`;
-    const corExt=extras>0?'var(--color-success)':extras<0?'var(--color-danger)':'var(--color-text-muted)';
-    const extStr=extras!==0?`<span style="color:${corExt};font-size:11px;font-weight:600;">${extras>0?'+':''}${minToStr(extras)}</span>`:'<span style="font-size:11px;color:var(--color-text-muted);">—</span>';
-    const statusEl=r.status==='aprovado'?'<span class="badge badge-success" style="font-size:10px;">✓</span>':r.status==='correcao'?'<span class="badge badge-warning" style="font-size:10px;">!</span>':'';
-    linhas+=`<tr style="${bg}border-bottom:1px solid var(--color-card-border);">
-      <td style="padding:7px 10px;font-size:12px;font-weight:${isH?700:400};color:${isH?'var(--cobalt-600)':'var(--color-text-primary)'};">${String(d).padStart(2,'0')} ${na}</td>
-      ${ti('entrada',r.entrada)}${ti('saida_almoco',r.saida_almoco)}${ti('retorno_almoco',r.retorno_almoco)}${ti('saida',r.saida)}
-      <td style="padding:7px 10px;font-size:12px;text-align:center;font-weight:500;">${minTrab>0?minToStr(minTrab):'—'}</td>
+    const bg = folga ? 'background:var(--gray-50);' : isH ? 'background:var(--cobalt-50);' : '';
+    const dia = String(d).padStart(2, '0');
+
+    if (folga) {
+      linhas += `<tr style="${bg}">
+        <td style="padding:7px 10px;font-size:12px;color:var(--color-text-muted);">${dia} ${na}</td>
+        <td colspan="4" style="padding:7px 10px;text-align:center;"><span class="badge badge-neutral">Folga</span></td>
+        <td></td><td></td><td></td>
+      </tr>`;
+      continue;
+    }
+
+    if (futuro) {
+      linhas += `<tr style="${bg}">
+        <td style="padding:7px 10px;font-size:12px;color:var(--color-text-secondary);">${dia} ${na}</td>
+        <td colspan="4" style="padding:7px 10px;text-align:center;color:var(--color-text-muted);font-size:12px;">—</td>
+        <td></td><td></td><td></td>
+      </tr>`;
+      continue;
+    }
+
+    // Dia passado ou hoje — mostra inputs
+    const min = calcHorasTrabalhadas({
+      entrada: r.entrada, saida: r.saida,
+      saida_almoco: r.saida_almoco, retorno_almoco: r.retorno_almoco
+    });
+    let extras = 0;
+    if (f.entrada && f.saida) {
+      let prev = tm(f.saida) - tm(f.entrada);
+      if (prev < 0) prev += 1440;
+      extras = min - prev;
+    }
+    totTrab += min;
+    totExt  += extras;
+
+    const inp = (campo, val) =>
+      `<td style="padding:3px 4px;">
+        <input type="time" value="${val || ''}"
+          style="width:82px;height:30px;padding:0 6px;border:1.5px solid var(--color-card-border);border-radius:var(--radius-md);font-size:12px;color:var(--color-text-primary);background:var(--color-input-bg);"
+          onchange="salvarBatida('${fid}','${ano}','${mes}','${d}','${campo}',this.value)"/>
+      </td>`;
+
+    const corExt = extras > 0 ? 'var(--color-success)' : extras < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)';
+    const extStr = extras !== 0
+      ? `<span style="color:${corExt};font-size:11px;font-weight:600;">${extras > 0 ? '+' : ''}${minToStr(extras)}</span>`
+      : '<span style="font-size:11px;color:var(--color-text-muted);">—</span>';
+    const stEl = r.status === 'aprovado'
+      ? '<span class="badge badge-success" style="font-size:10px;">✓</span>'
+      : r.status === 'correcao' ? '<span class="badge badge-warning" style="font-size:10px;">!</span>' : '';
+
+    linhas += `<tr style="${bg}border-bottom:1px solid var(--color-card-border);">
+      <td style="padding:7px 10px;font-size:12px;font-weight:${isH ? 700 : 400};color:${isH ? 'var(--cobalt-600)' : 'var(--color-text-primary)'};">${dia} ${na}</td>
+      ${inp('entrada', r.entrada)}
+      ${inp('saida_almoco', r.saida_almoco)}
+      ${inp('retorno_almoco', r.retorno_almoco)}
+      ${inp('saida', r.saida)}
+      <td style="padding:7px 10px;font-size:12px;text-align:center;font-weight:500;">${min > 0 ? minToStr(min) : '—'}</td>
       <td style="padding:7px 10px;text-align:center;">${extStr}</td>
-      <td style="padding:7px 6px;text-align:center;">${statusEl}<button class="btn btn-ghost btn-sm btn-icon" title="Corrigir" onclick="solicitarCorrecao('${fid}','${d}','${ano}','${mes}')"><i class="ti ti-edit" style="font-size:13px;"></i></button></td>
+      <td style="padding:7px 6px;text-align:center;">${stEl}
+        <button class="btn btn-ghost btn-sm btn-icon" title="Solicitar correção"
+          onclick="solicitarCorrecao('${fid}','${d}','${ano}','${mes}')">
+          <i class="ti ti-edit" style="font-size:13px;"></i>
+        </button>
+      </td>
     </tr>`;
   }
 
   return `
   <div class="metric-grid" style="margin-bottom:12px;">
-    <div class="metric-card"><p class="label">Turno</p><p class="value" style="font-size:14px;">${f.turno||'—'}</p></div>
-    <div class="metric-card"><p class="label">Entrada prevista</p><p class="value" style="font-size:14px;">${f.entrada||'—'}</p></div>
-    <div class="metric-card"><p class="label">Saída prevista</p><p class="value" style="font-size:14px;">${f.saida||'—'}</p></div>
+    <div class="metric-card"><p class="label">Turno</p><p class="value" style="font-size:14px;">${f.turno || '—'}</p></div>
+    <div class="metric-card"><p class="label">Entrada prevista</p><p class="value" style="font-size:14px;">${f.entrada || '—'}</p></div>
+    <div class="metric-card"><p class="label">Saída prevista</p><p class="value" style="font-size:14px;">${f.saida || '—'}</p></div>
     <div class="metric-card"><p class="label">Total trabalhado</p><p class="value" style="font-size:14px;">${minToStr(totTrab)}</p></div>
-    <div class="metric-card"><p class="label">Saldo extras</p><p class="value" style="font-size:14px;color:${totExt>=0?'var(--color-success)':'var(--color-danger)'};">${minToStr(totExt)}</p></div>
+    <div class="metric-card"><p class="label">Saldo extras</p><p class="value" style="font-size:14px;color:${totExt >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};">${minToStr(totExt)}</p></div>
   </div>
   <div class="table-wrap">
     <table class="data-table" style="min-width:680px;">
-      <thead><tr>
-        <th style="width:80px;">Dia</th>
-        <th class="c">Entrada</th><th class="c">Saída almoço</th><th class="c">Retorno</th><th class="c">Saída</th>
-        <th class="c">Total</th><th class="c">Extras</th><th class="c">Status</th>
-      </tr></thead>
-      <tbody>${linhas}</tbody>
+      <thead>
+        <tr>
+          <th style="width:80px;">Dia</th>
+          <th class="c">Entrada</th>
+          <th class="c">Saída almoço</th>
+          <th class="c">Retorno almoço</th>
+          <th class="c">Saída</th>
+          <th class="c">Total</th>
+          <th class="c">Extras</th>
+          <th class="c">Status</th>
+        </tr>
+      </thead>
+      <tbody>${linhas || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--color-text-muted);">Nenhum registro encontrado.</td></tr>'}</tbody>
     </table>
   </div>`;
 }

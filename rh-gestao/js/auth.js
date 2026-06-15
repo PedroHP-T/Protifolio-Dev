@@ -89,34 +89,70 @@ const Auth = {
     }, 2 * 60 * 1000);
   },
 
-  // Login com e-mail e senha
-  async login(email, senha) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
-    if (error) throw error;
-    const profile = await this._loadProfile(data.user.id);
-    if (!profile?.ativo) {
-      await supabase.auth.signOut();
-      throw new Error('Conta desativada. Entre em contato com o administrador.');
-    }
-    this._user    = data.user;
-    this._profile = profile;
-    return profile;
-  },
+ async login(email, senha) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+  if (error) throw error;
 
-  // Cadastro de novo usuário (apenas admin pode criar)
-  async cadastrar(email, senha, nome, role = 'funcionario') {
-    const { data, error } = await supabase.auth.signUp({
-      email, password: senha,
-      options: { data: { nome, role } },
-    });
-    if (error) throw error;
-    // Aguarda trigger criar o profile, depois atualiza role se necessário
-    await new Promise(r => setTimeout(r, 800));
-    if (data.user) {
-      await supabase.from('profiles').update({ nome, role }).eq('id', data.user.id);
+  const profile = await this._loadProfile(data.user.id);
+
+  if (!profile?.ativo) {
+    await supabase.auth.signOut();
+    throw new Error('Conta desativada. Entre em contato com o administrador.');
+  }
+
+  // Verifica status de acesso à empresa
+  const isAdmin =
+  profile.role === 'administrator' ||
+  profile.role === 'admin';
+
+  if (!isAdmin && profile.acesso_status === 'pendente') {
+  this._user    = data.user;
+  this._profile = profile;
+  throw { code: 'ACESSO_PENDENTE', profile };
+  }
+
+  if (profile.acesso_status === 'rejeitado') {
+    await supabase.auth.signOut();
+    throw new Error('Seu acesso à empresa foi negado. Entre em contato com o administrador.');
+  }
+
+  this._user    = data.user;
+  this._profile = profile;
+  return profile;
+},
+
+// Cadastro de novo usuário (apenas admin pode criar)
+async cadastrar(email, senha, nome, role = 'funcionario') {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: senha,
+    options: {
+      data: { nome, role }
     }
-    return data.user;
-  },
+  });
+
+  if (error) throw error;
+
+  // Aguarda trigger criar o profile
+  await new Promise(r => setTimeout(r, 800));
+
+  if (data.user) {
+    await supabase
+      .from('profiles')
+      .update({
+        nome,
+        role,
+        ativo: true,
+        acesso_status:
+          role === 'admin' || role === 'administrator'
+            ? 'aprovado'
+            : 'pendente'
+      })
+      .eq('id', data.user.id);
+  }
+
+  return data.user;
+},
 
   // Logout
   async logout() {

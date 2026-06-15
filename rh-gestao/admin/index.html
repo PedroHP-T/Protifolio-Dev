@@ -422,35 +422,205 @@ async function secOnline(){
 }
 
 // ── USUÁRIOS ─────────────────────────────────────────────────
-async function secUsuarios(){
+async function secUsuarios() {
   const users = await DB.getProfiles();
-  return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Gerenciar Usuários</h1><p style="font-size:13px;color:var(--color-text-muted);margin:0;">${(users||[]).length} usuários cadastrados</p></div>
-    <button class="btn btn-primary" onclick="modalNovoUsuario()"><i class="ti ti-user-plus"></i> Novo usuário</button>
-  </div>
-  <div class="admin-section">
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Nome</th><th>E-mail</th><th>Role</th><th>Status</th><th>Último login</th><th class="c">Ações</th></tr></thead>
-        <tbody>
-          ${(users||[]).map(u=>`<tr>
-            <td style="font-weight:500;">${u.nome||'—'}</td>
-            <td style="color:var(--color-text-secondary);">${u.email}</td>
-            <td>${roleBadge(u.role)}</td>
-            <td>${statusBadge(u.ativo!==false)}</td>
-            <td style="color:var(--color-text-muted);font-size:12px;">${fmtDT(u.ultimo_login)}</td>
-            <td class="c">
-              <div style="display:flex;gap:4px;justify-content:center;">
-                <button class="btn btn-secondary btn-sm btn-icon" title="Editar" onclick="modalEditarUsuario('${u.id}','${u.nome.replace(/'/g,"\\'")}','${u.email}','${u.role}',${u.ativo!==false})"><i class="ti ti-edit"></i></button>
-                <button class="btn btn-secondary btn-sm btn-icon" title="${u.ativo!==false?'Desativar':'Ativar'}" onclick="toggleUser('${u.id}',${u.ativo!==false})">${u.ativo!==false?'<i class="ti ti-user-off"></i>':'<i class="ti ti-user-check"></i>'}</button>
-              </div>
-            </td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
+
+  const pendentes  = (users || []).filter(u => u.acesso_status === 'pendente');
+  const aprovados  = (users || []).filter(u => u.acesso_status === 'aprovado');
+  const rejeitados = (users || []).filter(u => u.acesso_status === 'rejeitado');
+
+  const resto = [...aprovados, ...rejeitados];
+
+  const tabelaPendentes = pendentes.length ? `
+    <div class="admin-section" style="margin-bottom:20px;border:2px solid var(--color-warning);">
+      <div class="admin-section-header" style="background:var(--color-warning-bg);">
+        <p class="admin-section-title" style="color:var(--color-warning);">
+          ⏳ ${pendentes.length} acesso(s) aguardando aprovação
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Função</th>
+              <th>Cadastro</th>
+              <th class="c">Ações</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${pendentes.map(u => `
+              <tr>
+                <td style="font-weight:600;">${u.nome || '—'}</td>
+                <td>${u.email}</td>
+                <td>${roleBadge(u.role)}</td>
+                <td style="font-size:12px;color:var(--color-text-muted);">
+                  ${fmtDT(u.created_at)}
+                </td>
+
+                <td class="c">
+                  <div style="display:flex;gap:6px;justify-content:center;">
+                    <button
+                      class="btn btn-sm"
+                      style="background:var(--color-success-bg);color:var(--color-success);border:1px solid var(--color-success);"
+                      onclick="aprovarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
+                      <i class="ti ti-check"></i> Aprovar
+                    </button>
+
+                    <button
+                      class="btn btn-danger btn-sm"
+                      onclick="rejeitarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
+                      <i class="ti ti-x"></i> Rejeitar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>`;
+  ` : '';
+
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:2px;">Gerenciar Usuários</h1>
+        <p style="font-size:13px;color:var(--color-text-muted);margin:0;">
+          ${(users || []).length} usuários cadastrados
+        </p>
+      </div>
+
+      <button class="btn btn-primary" onclick="modalNovoUsuario()">
+        <i class="ti ti-user-plus"></i> Novo usuário
+      </button>
+    </div>
+
+    ${tabelaPendentes}
+
+    <div class="admin-section">
+      <div class="admin-section-header">
+        <p class="admin-section-title">Todos os usuários</p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Role</th>
+              <th>Acesso</th>
+              <th>Status</th>
+              <th>Último login</th>
+              <th class="c">Ações</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${resto.map(u => `
+              <tr>
+                <td style="font-weight:500;">${u.nome || '—'}</td>
+
+                <td style="color:var(--color-text-secondary);">
+                  ${u.email}
+                </td>
+
+                <td>${roleBadge(u.role)}</td>
+
+                <td>
+                  ${
+                    u.acesso_status === 'aprovado'
+                      ? '<span class="badge badge-success">Aprovado</span>'
+                      : '<span class="badge badge-danger">Rejeitado</span>'
+                  }
+                </td>
+
+                <td>${statusBadge(u.ativo !== false)}</td>
+
+                <td style="color:var(--color-text-muted);font-size:12px;">
+                  ${fmtDT(u.ultimo_login)}
+                </td>
+
+                <td class="c">
+                  <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+
+                    <button
+                      class="btn btn-secondary btn-sm btn-icon"
+                      title="Editar"
+                      onclick="modalEditarUsuario('${u.id}','${u.nome.replace(/'/g,"\\'")}','${u.email}','${u.role}',${u.ativo!==false})">
+                      <i class="ti ti-edit"></i>
+                    </button>
+
+                    ${
+                      u.acesso_status === 'rejeitado'
+                        ? `
+                          <button
+                            class="btn btn-sm"
+                            style="background:var(--color-success-bg);color:var(--color-success);border:1px solid var(--color-success);"
+                            title="Aprovar novamente"
+                            onclick="aprovarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
+                            <i class="ti ti-check"></i>
+                          </button>
+                        `
+                        : ''
+                    }
+
+                    <button
+                      class="btn btn-secondary btn-sm btn-icon"
+                      title="${u.ativo !== false ? 'Desativar' : 'Ativar'}"
+                      onclick="toggleUser('${u.id}',${u.ativo !== false})">
+                      ${
+                        u.ativo !== false
+                          ? '<i class="ti ti-user-off"></i>'
+                          : '<i class="ti ti-user-check"></i>'
+                      }
+                    </button>
+
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function aprovarAcesso(id, nome) {
+  if (!confirm(`Aprovar acesso de ${nome}?`)) return;
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ acesso_status: 'aprovado' })
+      .eq('id', id);
+
+    toast(`${nome} aprovado!`);
+    renderSecao('usuarios');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function rejeitarAcesso(id, nome) {
+  if (!confirm(`Rejeitar acesso de ${nome}? O usuário não conseguirá entrar no sistema.`)) return;
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ acesso_status: 'rejeitado' })
+      .eq('id', id);
+
+    toast(`Acesso de ${nome} rejeitado.`, 'err');
+    renderSecao('usuarios');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
 }
 
 function modalNovoUsuario(){

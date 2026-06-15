@@ -551,27 +551,89 @@ function loginMostrarOk(msg) {
 
 async function fazerLogin() {
   const email = document.getElementById('l-email')?.value.trim();
-  const senha = document.getElementById('l-senha')?.value;
+  const senha  = document.getElementById('l-senha')?.value;
   document.getElementById('login-erro').style.display = 'none';
   if (!email || !senha) { loginMostrarErro('Preencha e-mail e senha.'); return; }
   loginSetLoading('btn-login','spinner-login','btn-login-txt', true, 'Entrar');
   try {
     await Auth.login(email, senha);
-    // Remove overlay e mostra o sistema
     document.getElementById('login-overlay')?.remove();
-    document.querySelector('.wrapper').style.display = '';
-    document.querySelector('.topbar').style.display  = '';
+    document.querySelector('.wrapper').style.display   = '';
+    document.querySelector('.topbar').style.display    = '';
     document.querySelector('.topbar-info').style.display = '';
     const bn = document.querySelector('.bottom-nav');
     if (bn) bn.style.display = '';
-    // Reinicia o sistema
     iniciarSistema();
   } catch(e) {
+    // Acesso pendente — mostra tela de espera
+    if (e.code === 'ACESSO_PENDENTE') {
+      mostrarTelaEspera(e.profile);
+      return;
+    }
     const msg = e.message === 'Invalid login credentials'
       ? 'E-mail ou senha incorretos.' : e.message;
     loginMostrarErro(msg);
     loginSetLoading('btn-login','spinner-login','btn-login-txt', false, 'Entrar');
   }
+}
+function mostrarTelaEspera(profile) {
+  const overlay = document.getElementById('login-overlay');
+  if (!overlay) return;
+
+  overlay.innerHTML = `
+    <div style="background:var(--color-card-bg);border-radius:16px;padding:36px 32px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);text-align:center;animation:fadeDown .3s ease;">
+
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--color-warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px;">
+        ⏳
+      </div>
+
+      <h2 style="font-size:18px;font-weight:700;color:var(--color-text-primary);margin:0 0 8px;">Aguardando aprovação</h2>
+      <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 20px;">
+        Seu acesso à empresa está sendo analisado pelo administrador.
+        Você receberá uma notificação quando for aprovado.
+      </p>
+
+      <div style="background:var(--color-page-bg);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:24px;text-align:left;">
+        <p style="font-size:12px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Seus dados</p>
+        <p style="font-size:13px;color:var(--color-text-primary);margin:0 0 4px;"><strong>${profile.nome || '—'}</strong></p>
+        <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 4px;">${profile.email}</p>
+        <p style="font-size:12px;color:var(--color-text-secondary);margin:0;">
+          Função solicitada: <strong>${{admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[profile.role]||profile.role}</strong>
+        </p>
+      </div>
+
+      <button onclick="verificarAprovacao('${profile.id}')"
+        style="width:100%;height:40px;background:var(--cobalt-600);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <i class="ti ti-refresh"></i> Verificar aprovação
+      </button>
+
+      <button onclick="Auth.logout().then(()=>mostrarTelaLogin())"
+        style="width:100%;height:36px;background:transparent;color:var(--color-text-muted);border:1px solid var(--color-card-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">
+        Sair
+      </button>
+    </div>`;
+}
+
+async function verificarAprovacao(profileId) {
+  try {
+    const { data } = await supabase.from('profiles').select('acesso_status').eq('id', profileId).single();
+    if (data?.acesso_status === 'aprovado') {
+      // Recarrega o login para entrar normalmente
+      mostrarTelaLogin();
+      loginMostrarOk('Acesso aprovado! Faça login novamente.');
+    } else if (data?.acesso_status === 'rejeitado') {
+      await Auth.logout();
+      mostrarTelaLogin();
+      loginMostrarErro('Seu acesso foi negado pelo administrador.');
+    } else {
+      // Ainda pendente — pisca o botão
+      const btn = document.querySelector('[onclick^="verificarAprovacao"]');
+      if (btn) {
+        btn.textContent = 'Ainda pendente...';
+        setTimeout(() => { btn.innerHTML = '<i class="ti ti-refresh"></i> Verificar aprovação'; }, 2000);
+      }
+    }
+  } catch(e) {}
 }
 
 async function fazerCadastro() {

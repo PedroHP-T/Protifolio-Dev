@@ -440,6 +440,12 @@ body {
   :root {
     --sidebar-width: 232px;
     --infobar-height: 28px;
+    /* Esconde equipe hoje no mobile — navegação bottom nav substitui */
+    .dash-equipe { display: none; }
+    /* Grid do dashboard vira 1 coluna no mobile */
+    .dash-grid-2col {
+    grid-template-columns: 1fr !important;
+}
   }
 
   /* Topbar */
