@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Administração — RH Gestão</title>
+  <link rel="stylesheet" href="../css/reset.css">
+  <link rel="stylesheet" href="../css/variables.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/forms.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/db.js"></script>
+  <style>
+    :root { --sidebar-width: 220px; --topbar-height: 52px; --infobar-height: 0px; }
+    .wrapper { margin-top: var(--topbar-height); }
+    .sidebar { top: var(--topbar-height); }
+    .content { min-height: calc(100vh - var(--topbar-height)); padding: 24px; }
+    .admin-menu-section { font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.06em;padding:12px 12px 4px;margin-top:6px; }
+    .stat-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px; }
+    .stat-card { background:var(--color-card-bg);border:1px solid var(--color-card-border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow-sm); }
+    .stat-card .s-label { font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:6px; }
+    .stat-card .s-value { font-size:28px;font-weight:700;color:var(--metric-value);line-height:1; }
+    .stat-card .s-sub   { font-size:11px;color:var(--color-text-secondary);margin-top:4px; }
+    .online-dot { width:8px;height:8px;border-radius:50%;background:var(--color-success);display:inline-block;margin-right:5px;animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+    .admin-section { background:var(--color-card-bg);border:1px solid var(--color-card-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:20px; }
+    .admin-section-header { padding:14px 18px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;background:var(--color-page-bg); }
+    .admin-section-title { font-size:14px;font-weight:600;color:var(--color-text-primary);margin:0; }
+    .user-role-badge { padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase; }
+    .role-admin      { background:#FEF3C7;color:#92400E; }
+    .role-rh         { background:var(--cobalt-50);color:var(--cobalt-600); }
+    .role-funcionario{ background:var(--color-success-bg);color:var(--color-success); }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button class="menu-toggle" id="menu-toggle-btn" aria-label="Abrir menu"><i class="ti ti-menu-2"></i></button>
+    <a href="../index.html" style="text-decoration:none;">
+      <span class="topbar-logo" style="color:var(--color-topbar-text);">⚙️ Administração</span>
+    </a>
+  </div>
+  <div class="topbar-right">
+    <!-- Sino de notificações -->
+    <div style="position:relative;">
+      <i class="ti ti-bell" style="font-size:18px;color:rgba(255,255,255,.8);cursor:pointer;" onclick="toggleNotifAdmin()"></i>
+      <span id="notif-badge-admin" style="display:none;position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;background:#EF4444;border-radius:8px;font-size:9px;font-weight:700;color:#fff;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;"></span>
+      <div id="notif-panel-admin" style="display:none;position:absolute;top:calc(100% + 12px);right:-8px;width:300px;background:var(--color-card-bg);border:1px solid var(--color-card-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);z-index:600;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;">
+          <p style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin:0;">Notificações</p>
+          <button onclick="document.getElementById('notif-panel-admin').style.display='none'" style="font-size:11px;color:var(--cobalt-600);background:none;border:none;cursor:pointer;">Fechar</button>
+        </div>
+        <div id="notif-lista-admin" style="padding:16px;font-size:13px;color:var(--color-text-muted);">Carregando...</div>
+      </div>
+    </div>
+
+    <!-- Avatar com menu completo -->
+    <div class="avatar" id="avatar-btn" onclick="toggleAvatarAdmin()">AD</div>
+    <div class="avatar-menu" id="avatar-menu-admin" style="display:none;">
+
+      <!-- Info do usuário -->
+      <div class="avatar-menu-header">
+        <p class="emp-nome" id="admin-user-nome">—</p>
+        <p class="emp-cnpj" id="admin-user-role">—</p>
+        <p class="emp-cnpj" id="admin-emp-nome">—</p>
+      </div>
+
+      <!-- Tema -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Tema</p>
+        <div class="theme-opts">
+          <button class="theme-btn active" id="admin-theme-padrao" style="background:var(--cobalt-50);color:var(--cobalt-600);" onclick="setThemeAdmin('padrao')">☀️ Padrão</button>
+          <button class="theme-btn" id="admin-theme-dark" style="background:#1E1E1E;color:#FF6B6B;" onclick="setThemeAdmin('dark')">🌙 Escuro</button>
+        </div>
+      </div>
+
+      <!-- Acessibilidade -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Acessibilidade</p>
+        <div class="avatar-menu-item" onclick="toggleFonteAdmin()">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-typography"></i> Fonte grande</span>
+          <div class="toggle" id="admin-toggle-fonte"></div>
+        </div>
+        <div class="avatar-menu-item" onclick="toggleContrasteAdmin()">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-contrast"></i> Alto contraste</span>
+          <div class="toggle" id="admin-toggle-contraste"></div>
+        </div>
+      </div>
+
+      <!-- Navegação -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Navegação</p>
+        <div class="avatar-menu-item" onclick="location.href='../index.html'">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-layout-dashboard"></i> Voltar ao sistema</span>
+          <i class="ti ti-chevron-right" style="font-size:12px;color:var(--color-text-muted);"></i>
+        </div>
+      </div>
+
+      <!-- Conta -->
+      <div class="avatar-menu-section">
+        <p class="avatar-menu-label">Conta</p>
+        <div class="avatar-menu-item" onclick="fazerLogoutAdmin()" style="color:var(--color-danger);">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-logout" style="color:var(--color-danger);"></i> Sair</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="fecharSidebar()"></div>
+
+<div class="wrapper">
+  <nav class="sidebar" id="sidebar">
+    <p class="admin-menu-section">Painel</p>
+    <ul class="menu">
+      <li class="menu-item active" data-sec="metricas"><i class="ti ti-chart-bar"></i><span>Métricas</span></li>
+      <li class="menu-item" data-sec="online"><i class="ti ti-wifi"></i><span>Usuários online</span></li>
+    </ul>
+    <p class="admin-menu-section">Gestão</p>
+    <ul class="menu">
+      <li class="menu-item" data-sec="usuarios"><i class="ti ti-users"></i><span>Usuários</span></li>
+      <li class="menu-item" data-sec="departamentos"><i class="ti ti-building"></i><span>Departamentos</span></li>
+      <li class="menu-item" data-sec="cargos"><i class="ti ti-id-badge"></i><span>Cargos</span></li>
+      <li class="menu-item" data-sec="aprovacoes"><i class="ti ti-clipboard-check"></i><span>Aprovações</span></li>
+    </ul>
+    <p class="admin-menu-section">Sistema</p>
+    <ul class="menu">
+      <li class="menu-item" data-sec="auditoria"><i class="ti ti-history"></i><span>Auditoria</span></li>
+      <li class="menu-item" data-sec="backup"><i class="ti ti-database-export"></i><span>Backup</span></li>
+      <li class="menu-item" data-sec="configuracoes"><i class="ti ti-settings"></i><span>Configurações</span></li>
+    </ul>
+  </nav>
+
+  <main class="content" id="admin-content">
+    <div style="display:flex;align-items:center;gap:12px;padding:60px 0;justify-content:center;">
+      <div style="width:32px;height:32px;border:3px solid var(--cobalt-400);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;"></div>
+      <span style="color:var(--color-text-secondary);">Carregando...</span>
+    </div>
+  </main>
+</div>
+
+<!-- BOTTOM NAV mobile — área administrativa -->
+<nav class="bottom-nav" id="bottom-nav" style="display:none;">
+  <div class="bottom-nav-item active" data-sec="metricas"><i class="ti ti-chart-bar"></i><span>Métricas</span></div>
+  <div class="bottom-nav-item" data-sec="usuarios"><i class="ti ti-users"></i><span>Usuários</span></div>
+  <div class="bottom-nav-item" data-sec="aprovacoes"><i class="ti ti-clipboard-check"></i><span>Aprovações</span></div>
+  <div class="bottom-nav-item" data-sec="auditoria"><i class="ti ti-history"></i><span>Logs</span></div>
+  <div class="bottom-nav-item" data-sec="configuracoes"><i class="ti ti-settings"></i><span>Config.</span></div>
+</nav>
+
+<div id="modal-root"></div>
+
+<script>
+// ── PROTEÇÃO DE ROTA ──────────────────────────────────────────
+(async()=>{
+  const ok = await Auth.protegerRota(['admin']);
+  if(!ok) return;
+  const profile = Auth.currentUser();
+  if(profile) {
+    const ini = (profile.nome||'AD').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
+    document.getElementById('avatar-btn').textContent     = ini;
+    document.getElementById('admin-user-nome').textContent = profile.nome || '—';
+    document.getElementById('admin-user-role').textContent = {admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[profile.role]||profile.role;
+    try {
+      const emp = await DB.getEmpresa();
+      document.getElementById('admin-emp-nome').textContent = emp?.nome_fantasia || emp?.razao_social || '—';
+    } catch(e){}
+  }
+  // Aplica preferências salvas
+  setThemeAdmin(localStorage.getItem('rh_tema')||'padrao');
+  aplicarFonteAdmin(localStorage.getItem('rh_fonte_grande')==='1');
+  aplicarContrasteAdmin(localStorage.getItem('rh_alto_contraste')==='1');
+  // Ativa bottom nav em mobile
+  if(window.innerWidth <= 768) document.getElementById('bottom-nav').style.display='flex';
+  initAdmin();
+})();
+
+// ── MENU AVATAR ───────────────────────────────────────────────
+function toggleAvatarAdmin(){
+  const m=document.getElementById('avatar-menu-admin');
+  document.getElementById('notif-panel-admin').style.display='none';
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+function toggleNotifAdmin(){
+  const p=document.getElementById('notif-panel-admin');
+  document.getElementById('avatar-menu-admin').style.display='none';
+  p.style.display=p.style.display==='none'?'block':'none';
+  if(p.style.display==='block') carregarNotifAdmin();
+}
+async function carregarNotifAdmin(){
+  const el=document.getElementById('notif-lista-admin');
+  try{
+    const aprovs=await DB.getAprovacoes('pendente');
+    if(!aprovs||!aprovs.length){el.textContent='Nenhuma notificação pendente.';return;}
+    el.innerHTML=aprovs.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--color-card-border);font-size:12px;">
+      <p style="margin:0;font-weight:600;color:var(--color-text-primary);">${a.tipo}</p>
+      <p style="margin:0;color:var(--color-text-secondary);">${a.obs||'—'}</p>
+    </div>`).join('');
+  }catch(e){el.textContent='Erro ao carregar.';}
+}
+
+// ── TEMAS (sincroniza com o sistema principal via localStorage) ─
+function setThemeAdmin(tema){
+  document.documentElement.setAttribute('data-theme',tema==='padrao'?'':tema);
+  localStorage.setItem('rh_tema',tema);
+  ['padrao','dark'].forEach(t=>{
+    const el=document.getElementById('admin-theme-'+t);
+    if(el)el.classList.toggle('active',t===tema);
+  });
+}
+function toggleFonteAdmin(){
+  const on=localStorage.getItem('rh_fonte_grande')!=='1';
+  localStorage.setItem('rh_fonte_grande',on?'1':'0');
+  aplicarFonteAdmin(on);
+}
+function aplicarFonteAdmin(on){
+  document.body.classList.toggle('fonte-grande',on);
+  document.getElementById('admin-toggle-fonte')?.classList.toggle('on',on);
+}
+function toggleContrasteAdmin(){
+  const on=localStorage.getItem('rh_alto_contraste')!=='1';
+  localStorage.setItem('rh_alto_contraste',on?'1':'0');
+  aplicarContrasteAdmin(on);
+}
+function aplicarContrasteAdmin(on){
+  document.documentElement.style.filter=on?'contrast(1.28)':'';
+  document.getElementById('admin-toggle-contraste')?.classList.toggle('on',on);
+}
+
+async function fazerLogoutAdmin(){
+  if(!confirm('Deseja sair do sistema?'))return;
+  await Auth.logout();
+  location.href='../index.html';
+}
+
+// ── FECHAR MENUS AO CLICAR FORA ──────────────────────────────
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.topbar-right')&&!e.target.closest('#menu-toggle-btn')){
+    const am=document.getElementById('avatar-menu-admin');
+    const np=document.getElementById('notif-panel-admin');
+    if(am)am.style.display='none';
+    if(np)np.style.display='none';
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    fecharSidebar();
+    document.getElementById('avatar-menu-admin').style.display='none';
+    document.getElementById('notif-panel-admin').style.display='none';
+  }
+});
+
+// ── SIDEBAR MOBILE ────────────────────────────────────────────
+document.getElementById('menu-toggle-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('visible');
+});
+
+function fecharSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('visible');
+}
+
+// Navegação sidebar — funciona em desktop e mobile
+function navAdmin(sec) {
+  document.querySelectorAll('.menu-item, .bottom-nav-item').forEach(i => {
+    i.classList.toggle('active', i.dataset.sec === sec);
+  });
+  fecharSidebar();
+  renderSecao(sec);
+}
+
+document.querySelectorAll('.sidebar .menu-item').forEach(item => {
+  item.addEventListener('click', () => navAdmin(item.dataset.sec));
+});
+
+document.querySelectorAll('.bottom-nav-item').forEach(item => {
+  item.addEventListener('click', () => navAdmin(item.dataset.sec));
+});
+
+// Responsividade: exibe/oculta bottom nav ao redimensionar
+window.addEventListener('resize', () => {
+  const bn = document.getElementById('bottom-nav');
+  if(bn) bn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+});
+
+// ── UTILITÁRIOS ───────────────────────────────────────────────
+const fmtR=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const fmtD=iso=>{if(!iso)return'—';const[y,m,d]=iso.split('T')[0].split('-');return`${d}/${m}/${y}`;};
+const fmtDT=iso=>{if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});};
+
+function toast(msg,tipo='ok'){
+  const bg={ok:'#166534',err:'#991B1B',info:'#075985'}[tipo]||'#166534';
+  const t=document.createElement('div');t.textContent=msg;
+  t.style.cssText=`position:fixed;bottom:20px;right:20px;background:${bg};color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.2);`;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),2800);
+}
+
+function roleBadge(role){
+  const cls={admin:'role-admin',rh:'role-rh',funcionario:'role-funcionario'}[role]||'';
+  const label={admin:'Admin',rh:'RH',funcionario:'Funcionário'}[role]||role;
+  return`<span class="user-role-badge ${cls}">${label}</span>`;
+}
+
+function statusBadge(ativo){
+  return ativo?'<span class="badge badge-success">Ativo</span>':'<span class="badge badge-danger">Inativo</span>';
+}
+
+// ── RENDER PRINCIPAL ──────────────────────────────────────────
+async function initAdmin(){
+  await renderSecao('metricas');
+}
+
+async function renderSecao(sec){
+  const el=document.getElementById('admin-content');
+  el.innerHTML=`<div style="text-align:center;padding:40px;color:var(--color-text-muted);"><div style="width:28px;height:28px;border:3px solid var(--cobalt-400);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;"></div>Carregando...</div>`;
+  try{
+    switch(sec){
+      case 'metricas':      el.innerHTML=await secMetricas();      break;
+      case 'online':        el.innerHTML=await secOnline();         break;
+      case 'usuarios':      el.innerHTML=await secUsuarios();       break;
+      case 'departamentos': el.innerHTML=await secDepartamentos();  break;
+      case 'cargos':        el.innerHTML=await secCargos();         break;
+      case 'aprovacoes':    el.innerHTML=await secAprovacoes();     break;
+      case 'auditoria':     el.innerHTML=await secAuditoria();      break;
+      case 'backup':        el.innerHTML=await secBackup();         break;
+      case 'configuracoes': el.innerHTML=await secConfiguracoes();  break;
+    }
+  }catch(e){el.innerHTML=`<div class="alert alert-danger"><i class="ti ti-alert-circle"></i>${e.message}</div>`;}
+}
+
+// ── MÉTRICAS ─────────────────────────────────────────────────
+async function secMetricas(){
+  const [funcs,users,aprovs,sessoes]=await Promise.all([
+    DB.getFuncionarios(),DB.getProfiles(),DB.getAprovacoes('pendente'),DB.getSessoesAtivas()
+  ]);
+  const ativos=(funcs||[]).filter(f=>f.status!=='inativo').length;
+  const folha=(funcs||[]).reduce((a,f)=>{const s=parseFloat(f.salario||0);return a+s-calcINSS(s)-calcIRRF(s-calcINSS(s));},0);
+  const admins=(users||[]).filter(u=>u.role==='admin').length;
+  const rhs=(users||[]).filter(u=>u.role==='rh').length;
+
+  return`
+  <h1 class="page-title" style="margin-bottom:6px;">Painel de Métricas</h1>
+  <p class="page-subtitle">Visão geral do sistema em tempo real</p>
+
+  <div class="stat-row">
+    <div class="stat-card"><p class="s-label">Funcionários</p><p class="s-value">${ativos}</p><p class="s-sub">ativos no sistema</p></div>
+    <div class="stat-card"><p class="s-label">Usuários</p><p class="s-value">${(users||[]).length}</p><p class="s-sub">${admins} admin · ${rhs} RH</p></div>
+    <div class="stat-card"><p class="s-label">Online agora</p><p class="s-value" style="color:var(--color-success);">${(sessoes||[]).length}</p><p class="s-sub">nos últimos 5 min</p></div>
+    <div class="stat-card"><p class="s-label">Aprovações</p><p class="s-value" style="color:${(aprovs||[]).length>0?'var(--color-warning)':'var(--metric-value)'};">${(aprovs||[]).length}</p><p class="s-sub">pendentes</p></div>
+    <div class="stat-card"><p class="s-label">Folha líquida</p><p class="s-value" style="font-size:18px;">${fmtR(folha)}</p><p class="s-sub">estimativa mensal</p></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="admin-section">
+      <div class="admin-section-header"><p class="admin-section-title">Distribuição por role</p></div>
+      <div style="padding:16px;">
+        ${['admin','rh','funcionario'].map(r=>{
+          const count=(users||[]).filter(u=>u.role===r).length;
+          const total=(users||[]).length||1;
+          const pct=Math.round(count/total*100);
+          return`<div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px;">
+              <span>${{admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[r]}</span>
+              <span style="font-weight:600;">${count} (${pct}%)</span>
+            </div>
+            <div style="height:6px;background:var(--gray-200);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:var(--cobalt-400);border-radius:3px;transition:width .6s;"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-header"><p class="admin-section-title">Status dos funcionários</p></div>
+      <div style="padding:16px;">
+        ${['ativo','ferias','afastado','inativo'].map(s=>{
+          const count=(funcs||[]).filter(f=>f.status===s).length;
+          const label={ativo:'Ativo',ferias:'Férias',afastado:'Afastado',inativo:'Inativo'}[s];
+          const cor={ativo:'var(--color-success)',ferias:'var(--color-info)',afastado:'var(--color-warning)',inativo:'var(--color-danger)'}[s];
+          return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--color-card-border);">
+            <span style="font-size:13px;display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:${cor};display:inline-block;"></span>${label}</span>
+            <span style="font-size:13px;font-weight:600;color:${cor};">${count}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── USUÁRIOS ONLINE ──────────────────────────────────────────
+async function secOnline(){
+  const sessoes = await DB.getSessoesAtivas();
+  return`
+  <h1 class="page-title" style="margin-bottom:6px;">Usuários Online</h1>
+  <p class="page-subtitle">Ativos nos últimos 5 minutos</p>
+  <div class="admin-section">
+    <div class="admin-section-header">
+      <p class="admin-section-title"><span class="online-dot"></span>${(sessoes||[]).length} online agora</p>
+      <button class="btn btn-secondary btn-sm" onclick="renderSecao('online')"><i class="ti ti-refresh"></i> Atualizar</button>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Usuário</th><th>Role</th><th>Última atividade</th></tr></thead>
+        <tbody>
+          ${(sessoes||[]).length===0?'<tr><td colspan="3" style="text-align:center;color:var(--color-text-muted);">Nenhum usuário online</td></tr>':
+            (sessoes||[]).map(s=>`<tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><span class="online-dot"></span>${s.user_nome||'—'}</div></td>
+              <td>${roleBadge(s.user_role)}</td>
+              <td>${fmtDT(s.last_seen)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ── USUÁRIOS ─────────────────────────────────────────────────
+async function secUsuarios() {
+  const users = await DB.getProfiles();
+
+  const pendentes  = (users || []).filter(u => u.acesso_status === 'pendente');
+  const aprovados  = (users || []).filter(u => u.acesso_status === 'aprovado');
+  const rejeitados = (users || []).filter(u => u.acesso_status === 'rejeitado');
+
+  const resto = [...aprovados, ...rejeitados];
+
+  const tabelaPendentes = pendentes.length ? `
+    <div class="admin-section" style="margin-bottom:20px;border:2px solid var(--color-warning);">
+      <div class="admin-section-header" style="background:var(--color-warning-bg);">
+        <p class="admin-section-title" style="color:var(--color-warning);">
+          ⏳ ${pendentes.length} acesso(s) aguardando aprovação
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Função</th>
+              <th>Cadastro</th>
+              <th class="c">Ações</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${pendentes.map(u => `
+              <tr>
+                <td style="font-weight:600;">${u.nome || '—'}</td>
+                <td>${u.email}</td>
+                <td>${roleBadge(u.role)}</td>
+                <td style="font-size:12px;color:var(--color-text-muted);">
+                  ${fmtDT(u.created_at)}
+                </td>
+
+                <td class="c">
+                  <div style="display:flex;gap:6px;justify-content:center;">
+                    <button
+                      class="btn btn-sm"
+                      style="background:var(--color-success-bg);color:var(--color-success);border:1px solid var(--color-success);"
+                      onclick="aprovarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
+                      <i class="ti ti-check"></i> Aprovar
+                    </button>
+
+                    <button
+                      class="btn btn-danger btn-sm"
+                      onclick="rejeitarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
+                      <i class="ti ti-x"></i> Rejeitar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h1 class="page-title" style="margin-bottom:2px;">Gerenciar Usuários</h1>
+        <p style="font-size:13px;color:var(--color-text-muted);margin:0;">
+          ${(users || []).length} usuários cadastrados
+        </p>
+      </div>
+
+      <button class="btn btn-primary" onclick="modalNovoUsuario()">
+        <i class="ti ti-user-plus"></i> Novo usuário
+      </button>
+    </div>
+
+    ${tabelaPendentes}
+
+    <div class="admin-section">
+      <div class="admin-section-header">
+        <p class="admin-section-title">Todos os usuários</p>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Role</th>
+              <th>Acesso</th>
+              <th>Status</th>
+              <th>Último login</th>
+              <th class="c">Ações</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${resto.map(u => `
+              <tr>
+                <td style="font-weight:500;">${u.nome || '—'}</td>
+
+                <td style="color:var(--color-text-secondary);">
+                  ${u.email}
+                </td>
+
+                <td>${roleBadge(u.role)}</td>
+
+                <td>
+                  ${
+                    u.acesso_status === 'aprovado'
+                      ? '<span class="badge badge-success">Aprovado</span>'
+                      : '<span class="badge badge-danger">Rejeitado</span>'
+                  }
+                </td>
+
+                <td>${statusBadge(u.ativo !== false)}</td>
+
+                <td style="color:var(--color-text-muted);font-size:12px;">
+                  ${fmtDT(u.ultimo_login)}
+                </td>
+
+                <td class="c">
+                  <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+
+                    <button
+                      class="btn btn-secondary btn-sm btn-icon"
+                      title="Editar"
+                      onclick="modalEditarUsuario('${u.id}','${u.nome.replace(/'/g,"\\'")}','${u.email}','${u.role}',${u.ativo!==false})">
+                      <i class="ti ti-edit"></i>
+                    </button>
+
+                    ${
+                      u.acesso_status === 'rejeitado'
+                        ? `
+                          <button
+                            class="btn btn-sm"
+                            style="background:var(--color-success-bg);color:var(--color-success);border:1px solid var(--color-success);"
+                            title="Aprovar novamente"
+                            onclick="aprovarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
+                            <i class="ti ti-check"></i>
+                          </button>
+                        `
+                        : ''
+                    }
+
+                    <button
+                      class="btn btn-secondary btn-sm btn-icon"
+                      title="${u.ativo !== false ? 'Desativar' : 'Ativar'}"
+                      onclick="toggleUser('${u.id}',${u.ativo !== false})">
+                      ${
+                        u.ativo !== false
+                          ? '<i class="ti ti-user-off"></i>'
+                          : '<i class="ti ti-user-check"></i>'
+                      }
+                    </button>
+
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function aprovarAcesso(id, nome) {
+  if (!confirm(`Aprovar acesso de ${nome}?`)) return;
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ acesso_status: 'aprovado' })
+      .eq('id', id);
+
+    toast(`${nome} aprovado!`);
+    renderSecao('usuarios');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function rejeitarAcesso(id, nome) {
+  if (!confirm(`Rejeitar acesso de ${nome}? O usuário não conseguirá entrar no sistema.`)) return;
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ acesso_status: 'rejeitado' })
+      .eq('id', id);
+
+    toast(`Acesso de ${nome} rejeitado.`, 'err');
+    renderSecao('usuarios');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+function modalNovoUsuario(){
+  document.getElementById('modal-root').innerHTML=`
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:440px;box-shadow:var(--shadow-lg);">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;">
+        <p style="font-size:15px;font-weight:600;margin:0;">Novo usuário</p>
+        <button class="btn btn-icon btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+        <div class="field-group"><label class="field-label">Nome</label><input id="nu-nome" type="text" class="input" placeholder="Nome completo"/></div>
+        <div class="field-group"><label class="field-label">E-mail</label><input id="nu-email" type="email" class="input" placeholder="email@empresa.com"/></div>
+        <div class="field-group"><label class="field-label">Senha</label><input id="nu-senha" type="password" class="input" placeholder="mínimo 6 caracteres"/></div>
+        <div class="field-group"><label class="field-label">Role</label>
+          <select id="nu-role" class="input"><option value="funcionario">Funcionário</option><option value="rh">RH</option><option value="admin">Administrador</option></select>
+        </div>
+        <div id="nu-err" class="alert alert-danger" style="display:none;"></div>
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid var(--color-card-border);display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
+        <button class="btn btn-primary" onclick="criarUsuario()"><i class="ti ti-check"></i> Criar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function criarUsuario(){
+  const nome=document.getElementById('nu-nome').value.trim();
+  const email=document.getElementById('nu-email').value.trim();
+  const senha=document.getElementById('nu-senha').value;
+  const role=document.getElementById('nu-role').value;
+  const err=document.getElementById('nu-err');
+  if(!nome||!email||!senha){err.textContent='Preencha todos os campos.';err.style.display='block';return;}
+  try{
+    await Auth.cadastrar(email,senha,nome,role);
+    document.getElementById('modal-root').innerHTML='';
+    toast('Usuário criado com sucesso!');
+    renderSecao('usuarios');
+  }catch(e){err.textContent=e.message;err.style.display='block';}
+}
+
+function modalEditarUsuario(id,nome,email,role,ativo){
+  document.getElementById('modal-root').innerHTML=`
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:440px;box-shadow:var(--shadow-lg);">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;">
+        <p style="font-size:15px;font-weight:600;margin:0;">Editar usuário</p>
+        <button class="btn btn-icon btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+        <div class="field-group"><label class="field-label">Nome</label><input id="eu-nome" type="text" class="input" value="${nome}"/></div>
+        <div class="field-group"><label class="field-label">E-mail</label><input type="email" class="input" value="${email}" disabled style="opacity:.6;"/></div>
+        <div class="field-group"><label class="field-label">Role</label>
+          <select id="eu-role" class="input">
+            <option value="funcionario" ${role==='funcionario'?'selected':''}>Funcionário</option>
+            <option value="rh" ${role==='rh'?'selected':''}>RH</option>
+            <option value="admin" ${role==='admin'?'selected':''}>Administrador</option>
+          </select>
+        </div>
+        <div id="eu-err" class="alert alert-danger" style="display:none;"></div>
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid var(--color-card-border);display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarEdicaoUsuario('${id}')"><i class="ti ti-check"></i> Salvar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function salvarEdicaoUsuario(id){
+  const nome=document.getElementById('eu-nome').value.trim();
+  const role=document.getElementById('eu-role').value;
+  const err=document.getElementById('eu-err');
+  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
+  try{
+    await DB.updateProfile(id,{nome,role});
+    document.getElementById('modal-root').innerHTML='';
+    toast('Usuário atualizado!');
+    renderSecao('usuarios');
+  }catch(e){err.textContent=e.message;err.style.display='block';}
+}
+
+async function toggleUser(id,ativo){
+  if(!confirm(`${ativo?'Desativar':'Ativar'} este usuário?`))return;
+  try{await DB.toggleProfileAtivo(id,!ativo);toast(ativo?'Usuário desativado':'Usuário ativado');renderSecao('usuarios');}
+  catch(e){toast(e.message,'err');}
+}
+
+// ── DEPARTAMENTOS ────────────────────────────────────────────
+async function secDepartamentos(){
+  const deps=await DB.getDepartamentos();
+  return`
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+    <div><h1 class="page-title" style="margin-bottom:2px;">Departamentos</h1><p style="font-size:13px;color:var(--color-text-muted);margin:0;">${(deps||[]).length} departamentos</p></div>
+    <button class="btn btn-primary" onclick="modalDepartamento()"><i class="ti ti-plus"></i> Novo</button>
+  </div>
+  <div class="admin-section">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Nome</th><th>Gestor</th><th class="c">Ações</th></tr></thead>
+        <tbody>
+          ${(deps||[]).length===0?'<tr><td colspan="3" style="text-align:center;color:var(--color-text-muted);">Nenhum departamento cadastrado</td></tr>':
+            (deps||[]).map(d=>`<tr>
+              <td style="font-weight:500;">${d.nome}</td>
+              <td style="color:var(--color-text-secondary);">${d.profiles?.nome||'—'}</td>
+              <td class="c"><div style="display:flex;gap:4px;justify-content:center;">
+                <button class="btn btn-secondary btn-sm btn-icon" onclick="modalDepartamento('${d.id}','${d.nome.replace(/'/g,"\\'")}')"><i class="ti ti-edit"></i></button>
+                <button class="btn btn-danger btn-sm btn-icon" onclick="excluirDepartamento('${d.id}')"><i class="ti ti-trash"></i></button>
+              </div></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function modalDepartamento(id='',nome=''){
+  document.getElementById('modal-root').innerHTML=`
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:400px;box-shadow:var(--shadow-lg);padding:24px;">
+      <p style="font-size:15px;font-weight:600;margin:0 0 16px;">${id?'Editar':'Novo'} departamento</p>
+      <div class="field-group" style="margin-bottom:16px;"><label class="field-label">Nome</label><input id="dep-nome" type="text" class="input" value="${nome}" placeholder="Ex: Tecnologia"/></div>
+      <div id="dep-err" class="alert alert-danger" style="display:none;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarDepartamento('${id}')"><i class="ti ti-check"></i> Salvar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function salvarDepartamento(id){
+  const nome=document.getElementById('dep-nome').value.trim();
+  const err=document.getElementById('dep-err');
+  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
+  try{await DB.saveDepartamento({id:id||undefined,nome});document.getElementById('modal-root').innerHTML='';toast('Departamento salvo!');renderSecao('departamentos');}
+  catch(e){err.textContent=e.message;err.style.display='block';}
+}
+
+async function excluirDepartamento(id){
+  if(!confirm('Excluir departamento?'))return;
+  try{await DB.deleteDepartamento(id);toast('Departamento removido');renderSecao('departamentos');}
+  catch(e){toast(e.message,'err');}
+}
+
+// ── CARGOS ───────────────────────────────────────────────────
+async function secCargos(){
+  const cargos=await DB.getCargos();
+  const deps=await DB.getDepartamentos();
+  const depMap=Object.fromEntries((deps||[]).map(d=>[d.id,d.nome]));
+  return`
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+    <div><h1 class="page-title" style="margin-bottom:2px;">Cargos</h1><p style="font-size:13px;color:var(--color-text-muted);margin:0;">${(cargos||[]).length} cargos</p></div>
+    <button class="btn btn-primary" onclick="modalCargo(null,${JSON.stringify(deps||[]).replace(/"/g,"'")})"><i class="ti ti-plus"></i> Novo cargo</button>
+  </div>
+  <div class="admin-section">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Cargo</th><th>Departamento</th><th>Nível</th><th>Salário base</th><th class="c">Ações</th></tr></thead>
+        <tbody>
+          ${(cargos||[]).length===0?'<tr><td colspan="5" style="text-align:center;color:var(--color-text-muted);">Nenhum cargo</td></tr>':
+            (cargos||[]).map(c=>`<tr>
+              <td style="font-weight:500;">${c.nome}</td>
+              <td>${depMap[c.departamento_id]||'—'}</td>
+              <td><span class="badge badge-info">${c.nivel||'—'}</span></td>
+              <td>${fmtR(c.salario_base)}</td>
+              <td class="c"><div style="display:flex;gap:4px;justify-content:center;">
+                <button class="btn btn-danger btn-sm btn-icon" onclick="excluirCargo('${c.id}')"><i class="ti ti-trash"></i></button>
+              </div></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function modalCargo(id,deps){
+  // deps já vem como array
+  const depOpts=deps.map(d=>`<option value="${d.id}">${d.nome}</option>`).join('');
+  document.getElementById('modal-root').innerHTML=`
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:440px;box-shadow:var(--shadow-lg);padding:24px;">
+      <p style="font-size:15px;font-weight:600;margin:0 0 16px;">Novo cargo</p>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field-group"><label class="field-label">Nome do cargo</label><input id="c-nome" type="text" class="input" placeholder="Ex: Analista de TI"/></div>
+        <div class="field-group"><label class="field-label">Departamento</label><select id="c-dep" class="input"><option value="">Selecione...</option>${depOpts}</select></div>
+        <div class="field-group"><label class="field-label">Nível</label>
+          <select id="c-nivel" class="input"><option value="junior">Júnior</option><option value="pleno">Pleno</option><option value="senior">Sênior</option><option value="gestor">Gestor</option><option value="diretor">Diretor</option></select>
+        </div>
+        <div class="field-group"><label class="field-label">Salário base (R$)</label><input id="c-sal" type="number" class="input" placeholder="0,00" min="0" step="0.01"/></div>
+        <div id="c-err" class="alert alert-danger" style="display:none;"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarCargo()"><i class="ti ti-check"></i> Salvar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function salvarCargo(){
+  const nome=document.getElementById('c-nome').value.trim();
+  const dep=document.getElementById('c-dep').value;
+  const nivel=document.getElementById('c-nivel').value;
+  const sal=parseFloat(document.getElementById('c-sal').value)||0;
+  const err=document.getElementById('c-err');
+  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
+  try{await DB.saveCargo({nome,departamento_id:dep||null,nivel,salario_base:sal});document.getElementById('modal-root').innerHTML='';toast('Cargo salvo!');renderSecao('cargos');}
+  catch(e){err.textContent=e.message;err.style.display='block';}
+}
+
+async function excluirCargo(id){
+  if(!confirm('Excluir cargo?'))return;
+  try{await DB.deleteCargo(id);toast('Cargo removido');renderSecao('cargos');}
+  catch(e){toast(e.message,'err');}
+}
+
+// ── APROVAÇÕES ───────────────────────────────────────────────
+async function secAprovacoes(){
+  const aprovs=await DB.getAprovacoes();
+  return`
+  <h1 class="page-title" style="margin-bottom:6px;">Aprovações e Solicitações</h1>
+  <p class="page-subtitle">Gerencie todas as solicitações do sistema</p>
+  <div class="admin-section">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Tipo</th><th>Funcionário</th><th>Observação</th><th>Status</th><th>Data</th><th class="c">Ações</th></tr></thead>
+        <tbody>
+          ${(aprovs||[]).length===0?'<tr><td colspan="6" style="text-align:center;color:var(--color-text-muted);">Nenhuma solicitação</td></tr>':
+            (aprovs||[]).map(a=>`<tr>
+              <td><span class="badge badge-info">${a.tipo}</span></td>
+              <td>${a.funcionarios?.nome||'—'}</td>
+              <td style="color:var(--color-text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.obs||a.dados?.obs||'—'}</td>
+              <td>${a.status==='pendente'?'<span class="badge badge-warning">Pendente</span>':a.status==='aprovado'?'<span class="badge badge-success">Aprovado</span>':'<span class="badge badge-danger">Rejeitado</span>'}</td>
+              <td style="font-size:12px;color:var(--color-text-muted);">${fmtDT(a.created_at)}</td>
+              <td class="c">${a.status==='pendente'?`<div style="display:flex;gap:4px;justify-content:center;">
+                <button class="btn btn-secondary btn-sm" style="color:var(--color-success);" onclick="resolverAprov('${a.id}','aprovado')"><i class="ti ti-check"></i></button>
+                <button class="btn btn-danger btn-sm" onclick="resolverAprov('${a.id}','rejeitado')"><i class="ti ti-x"></i></button>
+              </div>`:'—'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+async function resolverAprov(id,status){
+  try{await DB.resolverAprovacao(id,status,'');toast(status==='aprovado'?'Aprovado!':'Rejeitado');renderSecao('aprovacoes');}
+  catch(e){toast(e.message,'err');}
+}
+
+// ── AUDITORIA ────────────────────────────────────────────────
+async function secAuditoria(){
+  const logs=await DB.getAuditLogs(200);
+  return`
+  <h1 class="page-title" style="margin-bottom:6px;">Log de Auditoria</h1>
+  <p class="page-subtitle">Histórico de todas as ações realizadas no sistema</p>
+  <div class="admin-section">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Tabela</th><th>Registro</th></tr></thead>
+        <tbody>
+          ${(logs||[]).length===0?'<tr><td colspan="5" style="text-align:center;color:var(--color-text-muted);">Nenhum log</td></tr>':
+            (logs||[]).map(l=>`<tr>
+              <td style="font-size:12px;white-space:nowrap;">${fmtDT(l.created_at)}</td>
+              <td style="font-weight:500;">${l.user_nome||'—'}</td>
+              <td><span class="badge ${l.acao==='delete'?'badge-danger':l.acao==='insert'?'badge-success':'badge-info'}">${l.acao}</span></td>
+              <td style="color:var(--color-text-secondary);">${l.tabela||'—'}</td>
+              <td style="font-size:11px;color:var(--color-text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;">${l.registro_id||'—'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ── BACKUP ───────────────────────────────────────────────────
+async function secBackup(){
+  return`
+  <h1 class="page-title" style="margin-bottom:6px;">Backup e Restauração</h1>
+  <p class="page-subtitle">Exporte todos os dados do sistema</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+    ${[
+      {ico:'ti-users',titulo:'Funcionários',desc:'Exporta todos os cadastros de funcionários',fn:"exportarTabela('funcionarios')"},
+      {ico:'ti-clock',titulo:'Registros de Ponto',desc:'Exporta o histórico completo de ponto',fn:"exportarTabela('ponto')"},
+      {ico:'ti-cash',titulo:'Pagamentos',desc:'Exporta todos os holerites gerados',fn:"exportarTabela('pagamentos')"},
+      {ico:'ti-history',titulo:'Audit Log',desc:'Exporta o log completo de auditoria',fn:"exportarTabela('audit_logs')"},
+    ].map(b=>`
+      <div class="admin-section" style="padding:20px;">
+        <div style="width:44px;height:44px;border-radius:var(--radius-md);background:var(--cobalt-50);display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
+          <i class="ti ${b.ico}" style="font-size:22px;color:var(--cobalt-600);"></i>
+        </div>
+        <p style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin:0 0 4px;">${b.titulo}</p>
+        <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 14px;">${b.desc}</p>
+        <button class="btn btn-secondary btn-sm" onclick="${b.fn}"><i class="ti ti-download"></i> Exportar JSON</button>
+      </div>`).join('')}
+  </div>`;
+}
+
+async function exportarTabela(tabela){
+  try{
+    const {data,error}=await supabase.from(tabela).select('*');
+    if(error)throw error;
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`backup_${tabela}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    toast(`Backup de ${tabela} exportado!`);
+  }catch(e){toast(e.message,'err');}
+}
+
+// ── CONFIGURAÇÕES ────────────────────────────────────────────
+async function secConfiguracoes(){
+  const empData=await DB.getEmpresa()||{};
+  return`
+  <h1 class="page-title" style="margin-bottom:6px;">Configurações Gerais</h1>
+  <p class="page-subtitle">Configurações do sistema e da empresa</p>
+  <div class="admin-section" style="padding:24px;max-width:600px;">
+    <p style="font-size:13px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Empresa</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div class="field-group"><label class="field-label">Razão social</label><input id="conf-razao" type="text" class="input" value="${empData.razao_social||''}"/></div>
+      <div class="field-group"><label class="field-label">CNPJ</label><input id="conf-cnpj" type="text" class="input" value="${empData.cnpj||''}"/></div>
+      <div class="field-group"><label class="field-label">Dia do salário</label>
+        <select id="conf-dsal" class="input">
+          ${['1','5','10','15','20','25','30','ultimo'].map(d=>`<option value="${d}" ${empData.dia_pagamento===d?'selected':''}>${d==='ultimo'?'Último dia útil':'Dia '+d}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-group"><label class="field-label">Dia do vale</label>
+        <select id="conf-dvale" class="input">
+          ${['1','5','10','15','20'].map(d=>`<option value="${d}" ${empData.dia_vale===d?'selected':''}>${'Dia '+d}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="salvarConfigEmpresa()"><i class="ti ti-check"></i> Salvar configurações</button>
+  </div>`;
+}
+
+async function salvarConfigEmpresa(){
+  const razao=document.getElementById('conf-razao')?.value.trim();
+  const cnpj=document.getElementById('conf-cnpj')?.value.trim();
+  const dsal=document.getElementById('conf-dsal')?.value;
+  const dvale=document.getElementById('conf-dvale')?.value;
+  try{
+    await DB.saveEmpresa({razao_social:razao,cnpj,dia_pagamento:dsal,dia_vale:dvale});
+    toast('Configurações salvas!');
+  }catch(e){toast(e.message,'err');}
+}
+</script>
+</body>
+</html>
