@@ -69,6 +69,13 @@
           <i class="ti ti-chevron-right" style="font-size:12px;color:var(--color-text-muted);"></i>
         </div>
       </div>
+      <div class="avatar-menu-section" id="menu-rh-link" style="display:none;">
+        <p class="avatar-menu-label">Recursos Humanos</p>
+        <div class="avatar-menu-item" onclick="location.href='rh/index.html'">
+          <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-users-group"></i> Área de RH</span>
+          <i class="ti ti-chevron-right" style="font-size:12px;color:var(--color-text-muted);"></i>
+        </div>
+      </div>
       <div class="avatar-menu-section">
         <p class="avatar-menu-label">Conta</p>
         <div class="avatar-menu-item" onclick="abrirPopupEmpresa()">
@@ -104,7 +111,6 @@
       <li class="menu-item" data-page="escala"><i class="ti ti-calendar"></i><span>Escalas</span></li>
       <li class="menu-item" data-page="ponto"><i class="ti ti-clock"></i><span>Folha de ponto</span></li>
       <li class="menu-item" data-page="pagamentos"><i class="ti ti-cash"></i><span>Pagamentos</span></li>
-      <li class="menu-item" data-page="relatorios"><i class="ti ti-chart-bar"></i><span>Relatórios</span></li>
     </ul>
   </nav>
   <main class="content" id="content" role="main">
@@ -171,36 +177,45 @@ async function fazerLogout() {
 // ══════════════════════════════════════════════
 // SIDEBAR / NAVEGAÇÃO
 // ══════════════════════════════════════════════
-document.getElementById('menu-toggle-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  const sb = document.getElementById('sidebar');
-  sb.classList.toggle('open');
-  document.getElementById('sidebar-overlay').classList.toggle('visible');
-});
+const _menuToggleBtn = document.getElementById('menu-toggle-btn');
+if (_menuToggleBtn) {
+  _menuToggleBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const sb = document.getElementById('sidebar');
+    if (sb) sb.classList.toggle('open');
+    const ov = document.getElementById('sidebar-overlay');
+    if (ov) ov.classList.toggle('visible');
+  });
+}
 function fecharSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('visible');
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-overlay')?.classList.remove('visible');
 }
 document.querySelectorAll('.bottom-nav-item').forEach(item => {
   item.addEventListener('click', () => { fecharSidebar(); navigateTo(item.dataset.page); });
 });
 document.addEventListener('click', e => {
   if (!e.target.closest('.topbar-right') && !e.target.closest('#menu-toggle-btn')) {
-    document.getElementById('avatar-menu').style.display = 'none';
-    document.getElementById('notif-panel').style.display = 'none';
+    document.getElementById('avatar-menu')?.style && (document.getElementById('avatar-menu').style.display = 'none');
+    document.getElementById('notif-panel')?.style && (document.getElementById('notif-panel').style.display = 'none');
   }
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     fecharSidebar();
-    document.getElementById('avatar-menu').style.display = 'none';
-    document.getElementById('notif-panel').style.display = 'none';
-    document.getElementById('popup-empresa').style.display = 'none';
+    const am = document.getElementById('avatar-menu');
+    const np = document.getElementById('notif-panel');
+    const pe = document.getElementById('popup-empresa');
+    if (am) am.style.display = 'none';
+    if (np) np.style.display = 'none';
+    if (pe) pe.style.display = 'none';
   }
 });
 function toggleAvatarMenu() {
   const m = document.getElementById('avatar-menu');
-  document.getElementById('notif-panel').style.display = 'none';
+  if (!m) return;
+  const np = document.getElementById('notif-panel');
+  if (np) np.style.display = 'none';
   m.style.display = m.style.display === 'none' ? 'block' : 'none';
 }
 
@@ -211,9 +226,9 @@ const NOTIF_KEY = 'rh_notifs_lidas';
 
 async function gerarNotificacoes() {
   try {
-    const [emp, fs, aprovs] = await Promise.all([
-      DB.getEmpresa(), DB.getFuncionarios(), DB.getAprovacoes('pendente')
-    ]);
+    const profile = Auth.currentUser();
+    const ehFuncionarioComum = profile && profile.role === 'funcionario';
+    const emp = await DB.getEmpresa().catch(()=>null);
     const hj = new Date();
     const notifs = [];
     const diaSal = parseInt(emp?.dia_pagamento);
@@ -223,8 +238,15 @@ async function gerarNotificacoes() {
       const diff = Math.ceil((d-hj)/86400000);
       if (diff <= 5) notifs.push({ id:'sal_'+d.toISOString().slice(0,7), icone:'ti-cash', cor:'#166534',
         titulo: diff===0?'Pagamento de salário hoje!':'Salário em '+diff+(diff===1?' dia':' dias'),
-        texto: 'Dia '+diaSal+' · '+(fs||[]).length+' funcionário(s)' });
+        texto: 'Dia '+diaSal });
     }
+
+    // Funcionário comum não vê aprovações nem folgas de colegas — só notificações genéricas
+    if (ehFuncionarioComum) return notifs;
+
+    const [fs, aprovs] = await Promise.all([
+      DB.getFuncionarios().catch(()=>[]), DB.getAprovacoes('pendente').catch(()=>[])
+    ]);
     if ((aprovs||[]).length > 0) {
       notifs.push({ id:'aprov_'+hj.toISOString().slice(0,10), icone:'ti-clipboard-check', cor:'#92400E',
         titulo: aprovs.length+' aprovação(ões) pendente(s)', texto: 'Clique para ver' });
@@ -237,7 +259,10 @@ async function gerarNotificacoes() {
         titulo: f.nome.split(' ')[0]+' está de folga hoje', texto: f.cargo||'—' });
     });
     return notifs;
-  } catch(e) { return []; }
+  } catch(e) {
+    console.error('[gerarNotificacoes]', e.message);
+    return [];
+  }
 }
 
 function toggleNotif() {
@@ -249,28 +274,35 @@ function toggleNotif() {
 }
 
 async function renderNotifs() {
-  const notifs = await gerarNotificacoes();
-  const lidas  = JSON.parse(localStorage.getItem(NOTIF_KEY)||'[]');
-  const lista  = document.getElementById('notif-lista');
-  const badge  = document.getElementById('notif-badge');
-  const nl = notifs.filter(n => !lidas.includes(n.id));
-  badge.style.display = nl.length > 0 ? 'flex' : 'none';
-  if (nl.length > 0) badge.textContent = nl.length > 9 ? '9+' : nl.length;
-  if (!notifs.length) {
-    lista.innerHTML = '<p style="padding:20px;text-align:center;font-size:13px;color:var(--color-text-muted);">Nenhuma notificação.</p>';
-    return;
+  try {
+    const notifs = await gerarNotificacoes();
+    const lidas  = JSON.parse(localStorage.getItem(NOTIF_KEY)||'[]');
+    const lista  = document.getElementById('notif-lista');
+    const badge  = document.getElementById('notif-badge');
+    const nl = notifs.filter(n => !lidas.includes(n.id));
+    if (badge) {
+      badge.style.display = nl.length > 0 ? 'flex' : 'none';
+      if (nl.length > 0) badge.textContent = nl.length > 9 ? '9+' : nl.length;
+    }
+    if (!lista) return;
+    if (!notifs.length) {
+      lista.innerHTML = '<p style="padding:20px;text-align:center;font-size:13px;color:var(--color-text-muted);">Nenhuma notificação.</p>';
+      return;
+    }
+    lista.innerHTML = notifs.map(n => {
+      const lida = lidas.includes(n.id);
+      return `<div onclick="marcarLida('${n.id}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--color-card-border);cursor:pointer;background:${lida?'transparent':'var(--cobalt-50)'};">
+        <div style="width:32px;height:32px;border-radius:50%;background:${n.cor}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ${n.icone}" style="font-size:15px;color:${n.cor};"></i></div>
+        <div style="flex:1;min-width:0;">
+          <p style="font-size:13px;font-weight:${lida?500:600};color:var(--color-text-primary);margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.titulo}</p>
+          <p style="font-size:11px;color:var(--color-text-secondary);margin:0;">${n.texto}</p>
+        </div>
+        ${!lida?'<div style="width:7px;height:7px;border-radius:50%;background:#EF4444;flex-shrink:0;margin-top:5px;"></div>':''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('[renderNotifs]', e.message);
   }
-  lista.innerHTML = notifs.map(n => {
-    const lida = lidas.includes(n.id);
-    return `<div onclick="marcarLida('${n.id}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--color-card-border);cursor:pointer;background:${lida?'transparent':'var(--cobalt-50)'};">
-      <div style="width:32px;height:32px;border-radius:50%;background:${n.cor}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ${n.icone}" style="font-size:15px;color:${n.cor};"></i></div>
-      <div style="flex:1;min-width:0;">
-        <p style="font-size:13px;font-weight:${lida?500:600};color:var(--color-text-primary);margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.titulo}</p>
-        <p style="font-size:11px;color:var(--color-text-secondary);margin:0;">${n.texto}</p>
-      </div>
-      ${!lida?'<div style="width:7px;height:7px;border-radius:50%;background:#EF4444;flex-shrink:0;margin-top:5px;"></div>':''}
-    </div>`;
-  }).join('');
 }
 
 function marcarLida(id) {
@@ -425,10 +457,11 @@ function mostrarTelaLogin(tab = 'login') {
       </div>
 
       <!-- Tabs -->
-      <div style="display:flex;border-bottom:1px solid var(--color-card-border);margin-bottom:20px;">
-        <button id="tab-btn-login" onclick="loginTab('login')" style="flex:1;padding:8px;border:none;background:transparent;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid var(--cobalt-600);color:var(--cobalt-600);">Entrar</button>
-        <button id="tab-btn-cadastro" onclick="loginTab('cadastro')" style="flex:1;padding:8px;border:none;background:transparent;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-text-muted);">Criar conta</button>
-        <button id="tab-btn-recuperar" onclick="loginTab('recuperar')" style="flex:1;padding:8px;border:none;background:transparent;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-text-muted);">Recuperar</button>
+      <div style="display:flex;border-bottom:1px solid var(--color-card-border);margin-bottom:20px;flex-wrap:wrap;">
+        <button id="tab-btn-login" onclick="loginTab('login')" style="flex:1;padding:8px 4px;border:none;background:transparent;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid var(--cobalt-600);color:var(--cobalt-600);white-space:nowrap;">Entrar</button>
+        <button id="tab-btn-cadastro" onclick="loginTab('cadastro')" style="flex:1;padding:8px 4px;border:none;background:transparent;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-text-muted);white-space:nowrap;">Criar conta</button>
+        <button id="tab-btn-recuperar" onclick="loginTab('recuperar')" style="flex:1;padding:8px 4px;border:none;background:transparent;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-text-muted);white-space:nowrap;">Recuperar</button>
+        <button id="tab-btn-empresa" onclick="loginTab('empresa')" style="flex:1;padding:8px 4px;border:none;background:transparent;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-text-muted);white-space:nowrap;">Nova empresa</button>
       </div>
 
       <div id="login-erro" style="display:none;background:var(--color-danger-bg);color:var(--color-danger);border:1px solid var(--color-danger);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;"></div>
@@ -512,6 +545,50 @@ function mostrarTelaLogin(tab = 'login') {
         </button>
       </div>
 
+      <!-- ABA NOVA EMPRESA -->
+      <div id="tab-empresa" style="display:none;">
+        <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 16px;">
+          Cadastre sua empresa e crie sua conta de administrador. Você poderá aprovar o acesso de outros funcionários depois.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">Seu nome completo</label>
+            <input id="ne-nome" type="text" placeholder="Nome do administrador"
+              style="width:100%;height:40px;padding:0 12px;border:1.5px solid var(--color-card-border);border-radius:8px;font-size:13px;color:var(--color-text-primary);background:var(--color-input-bg);outline:none;font-family:inherit;"
+              onfocus="this.style.borderColor='var(--cobalt-400)'" onblur="this.style.borderColor='var(--color-card-border)'"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">Seu e-mail</label>
+            <input id="ne-email" type="email" placeholder="seu@email.com"
+              style="width:100%;height:40px;padding:0 12px;border:1.5px solid var(--color-card-border);border-radius:8px;font-size:13px;color:var(--color-text-primary);background:var(--color-input-bg);outline:none;font-family:inherit;"
+              onfocus="this.style.borderColor='var(--cobalt-400)'" onblur="this.style.borderColor='var(--color-card-border)'"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">Senha (mínimo 6 caracteres)</label>
+            <input id="ne-senha" type="password" placeholder="••••••••"
+              style="width:100%;height:40px;padding:0 12px;border:1.5px solid var(--color-card-border);border-radius:8px;font-size:13px;color:var(--color-text-primary);background:var(--color-input-bg);outline:none;font-family:inherit;"
+              onfocus="this.style.borderColor='var(--cobalt-400)'" onblur="this.style.borderColor='var(--color-card-border)'"/>
+          </div>
+          <div style="border-top:1px solid var(--color-card-border);margin-top:6px;padding-top:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">Razão social da empresa</label>
+            <input id="ne-razao" type="text" placeholder="Ex: Empresa Ltda."
+              style="width:100%;height:40px;padding:0 12px;border:1.5px solid var(--color-card-border);border-radius:8px;font-size:13px;color:var(--color-text-primary);background:var(--color-input-bg);outline:none;font-family:inherit;margin-bottom:10px;"
+              onfocus="this.style.borderColor='var(--cobalt-400)'" onblur="this.style.borderColor='var(--color-card-border)'"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">CNPJ</label>
+            <input id="ne-cnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"
+              style="width:100%;height:40px;padding:0 12px;border:1.5px solid var(--color-card-border);border-radius:8px;font-size:13px;color:var(--color-text-primary);background:var(--color-input-bg);outline:none;font-family:inherit;"
+              onfocus="this.style.borderColor='var(--cobalt-400)'" onblur="this.style.borderColor='var(--color-card-border)'"/>
+          </div>
+        </div>
+        <button onclick="fazerCadastroEmpresa()" id="btn-ne"
+          style="width:100%;height:42px;background:var(--cobalt-600);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;">
+          <span id="btn-ne-txt">Cadastrar empresa</span>
+          <div id="spinner-ne" style="display:none;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;"></div>
+        </button>
+      </div>
+
     </div>`;
 
   // Foca no campo de e-mail
@@ -519,11 +596,15 @@ function mostrarTelaLogin(tab = 'login') {
 }
 
 function loginTab(tab) {
-  ['login','cadastro','recuperar'].forEach(t => {
-    document.getElementById('tab-'+t).style.display      = t === tab ? 'block' : 'none';
-    document.getElementById('tab-btn-'+t).style.color    = t === tab ? 'var(--cobalt-600)' : 'var(--color-text-muted)';
-    document.getElementById('tab-btn-'+t).style.fontWeight = t === tab ? '600' : '500';
-    document.getElementById('tab-btn-'+t).style.borderBottomColor = t === tab ? 'var(--cobalt-600)' : 'transparent';
+  ['login','cadastro','recuperar','empresa'].forEach(t => {
+    const tabEl = document.getElementById('tab-'+t);
+    const btnEl = document.getElementById('tab-btn-'+t);
+    if (tabEl) tabEl.style.display = t === tab ? 'block' : 'none';
+    if (btnEl) {
+      btnEl.style.color = t === tab ? 'var(--cobalt-600)' : 'var(--color-text-muted)';
+      btnEl.style.fontWeight = t === tab ? '600' : '500';
+      btnEl.style.borderBottomColor = t === tab ? 'var(--cobalt-600)' : 'transparent';
+    }
   });
   document.getElementById('login-erro').style.display = 'none';
   document.getElementById('login-ok').style.display   = 'none';
@@ -551,21 +632,28 @@ function loginMostrarOk(msg) {
 
 async function fazerLogin() {
   const email = document.getElementById('l-email')?.value.trim();
-  const senha  = document.getElementById('l-senha')?.value;
+  const senha = document.getElementById('l-senha')?.value;
   document.getElementById('login-erro').style.display = 'none';
   if (!email || !senha) { loginMostrarErro('Preencha e-mail e senha.'); return; }
   loginSetLoading('btn-login','spinner-login','btn-login-txt', true, 'Entrar');
   try {
     await Auth.login(email, senha);
+    // Remove overlay e mostra o sistema
     document.getElementById('login-overlay')?.remove();
-    document.querySelector('.wrapper').style.display   = '';
-    document.querySelector('.topbar').style.display    = '';
+    document.querySelector('.wrapper').style.display = '';
+    document.querySelector('.topbar').style.display  = '';
     document.querySelector('.topbar-info').style.display = '';
     const bn = document.querySelector('.bottom-nav');
     if (bn) bn.style.display = '';
+    // Reinicia o sistema
     iniciarSistema();
   } catch(e) {
-    // Acesso pendente — mostra tela de espera
+    // Funcionário sem CNPJ vinculado ainda — mostra tela para informar o CNPJ
+    if (e.code === 'SEM_CNPJ') {
+      mostrarTelaCnpj(e.profile);
+      return;
+    }
+    // Funcionário já vinculou CNPJ mas aguarda aprovação do admin
     if (e.code === 'ACESSO_PENDENTE') {
       mostrarTelaEspera(e.profile);
       return;
@@ -575,65 +663,6 @@ async function fazerLogin() {
     loginMostrarErro(msg);
     loginSetLoading('btn-login','spinner-login','btn-login-txt', false, 'Entrar');
   }
-}
-function mostrarTelaEspera(profile) {
-  const overlay = document.getElementById('login-overlay');
-  if (!overlay) return;
-
-  overlay.innerHTML = `
-    <div style="background:var(--color-card-bg);border-radius:16px;padding:36px 32px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);text-align:center;animation:fadeDown .3s ease;">
-
-      <div style="width:64px;height:64px;border-radius:50%;background:var(--color-warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px;">
-        ⏳
-      </div>
-
-      <h2 style="font-size:18px;font-weight:700;color:var(--color-text-primary);margin:0 0 8px;">Aguardando aprovação</h2>
-      <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 20px;">
-        Seu acesso à empresa está sendo analisado pelo administrador.
-        Você receberá uma notificação quando for aprovado.
-      </p>
-
-      <div style="background:var(--color-page-bg);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:24px;text-align:left;">
-        <p style="font-size:12px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Seus dados</p>
-        <p style="font-size:13px;color:var(--color-text-primary);margin:0 0 4px;"><strong>${profile.nome || '—'}</strong></p>
-        <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 4px;">${profile.email}</p>
-        <p style="font-size:12px;color:var(--color-text-secondary);margin:0;">
-          Função solicitada: <strong>${{admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[profile.role]||profile.role}</strong>
-        </p>
-      </div>
-
-      <button onclick="verificarAprovacao('${profile.id}')"
-        style="width:100%;height:40px;background:var(--cobalt-600);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <i class="ti ti-refresh"></i> Verificar aprovação
-      </button>
-
-      <button onclick="Auth.logout().then(()=>mostrarTelaLogin())"
-        style="width:100%;height:36px;background:transparent;color:var(--color-text-muted);border:1px solid var(--color-card-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">
-        Sair
-      </button>
-    </div>`;
-}
-
-async function verificarAprovacao(profileId) {
-  try {
-    const { data } = await supabase.from('profiles').select('acesso_status').eq('id', profileId).single();
-    if (data?.acesso_status === 'aprovado') {
-      // Recarrega o login para entrar normalmente
-      mostrarTelaLogin();
-      loginMostrarOk('Acesso aprovado! Faça login novamente.');
-    } else if (data?.acesso_status === 'rejeitado') {
-      await Auth.logout();
-      mostrarTelaLogin();
-      loginMostrarErro('Seu acesso foi negado pelo administrador.');
-    } else {
-      // Ainda pendente — pisca o botão
-      const btn = document.querySelector('[onclick^="verificarAprovacao"]');
-      if (btn) {
-        btn.textContent = 'Ainda pendente...';
-        setTimeout(() => { btn.innerHTML = '<i class="ti ti-refresh"></i> Verificar aprovação'; }, 2000);
-      }
-    }
-  } catch(e) {}
 }
 
 async function fazerCadastro() {
@@ -671,6 +700,200 @@ async function fazerRecuperacao() {
   }
 }
 
+// ══════════════════════════════════════════════
+// CADASTRO DE NOVA EMPRESA (na tela de login)
+// ══════════════════════════════════════════════
+async function fazerCadastroEmpresa() {
+  const nome  = document.getElementById('ne-nome')?.value.trim();
+  const email = document.getElementById('ne-email')?.value.trim();
+  const senha = document.getElementById('ne-senha')?.value;
+  const razao = document.getElementById('ne-razao')?.value.trim();
+  const cnpj  = document.getElementById('ne-cnpj')?.value.trim();
+
+  document.getElementById('login-erro').style.display = 'none';
+  if (!nome || !email || !senha || !razao || !cnpj) {
+    loginMostrarErro('Preencha todos os campos.'); return;
+  }
+  if (senha.length < 6) { loginMostrarErro('Senha deve ter pelo menos 6 caracteres.'); return; }
+
+  loginSetLoading('btn-ne','spinner-ne','btn-ne-txt', true, 'Cadastrar empresa');
+  try {
+    // Cria a conta de usuário como admin
+    await Auth.cadastrar(email, senha, nome, 'admin');
+    // Faz login imediatamente para poder cadastrar a empresa
+    await Auth.login(email, senha);
+    // Cria a empresa e vincula o usuário como admin dela
+    await Auth.cadastrarEmpresaComoAdmin({ razao_social: razao, cnpj });
+
+    document.getElementById('login-overlay')?.remove();
+    document.querySelector('.wrapper').style.display = '';
+    document.querySelector('.topbar').style.display  = '';
+    document.querySelector('.topbar-info').style.display = '';
+    const bn = document.querySelector('.bottom-nav');
+    if (bn) bn.style.display = '';
+    iniciarSistema();
+  } catch(e) {
+    loginMostrarErro(e.message);
+    loginSetLoading('btn-ne','spinner-ne','btn-ne-txt', false, 'Cadastrar empresa');
+  }
+}
+
+// Máscara de CNPJ no cadastro de empresa
+document.addEventListener('input', function(e) {
+  if (e.target?.id === 'ne-cnpj') {
+    let v = e.target.value.replace(/\D/g,'').slice(0,14);
+    v = v.replace(/^(\d{2})(\d)/,'$1.$2');
+    v = v.replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3');
+    v = v.replace(/\.(\d{3})(\d)/,'.$1/$2');
+    v = v.replace(/(\d{4})(\d)/,'$1-$2');
+    e.target.value = v;
+  }
+});
+
+// ══════════════════════════════════════════════
+// TELA: INFORMAR CNPJ DA EMPRESA (após primeiro login)
+// ══════════════════════════════════════════════
+function mostrarTelaCnpj(profile) {
+  const overlay = document.getElementById('login-overlay');
+  if (!overlay) return;
+
+  overlay.innerHTML = `
+    <div style="background:var(--color-card-bg);border-radius:16px;padding:36px 32px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);animation:fadeDown .3s ease;">
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+        <div style="width:44px;height:44px;border-radius:8px;background:var(--cobalt-600);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;flex-shrink:0;"><i class="ti ti-building"></i></div>
+        <div>
+          <p style="font-size:16px;font-weight:700;color:var(--color-text-primary);margin:0;">Quase lá!</p>
+          <p style="font-size:11px;color:var(--color-text-muted);margin:0;">Informe o CNPJ da sua empresa</p>
+        </div>
+      </div>
+
+      <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 20px;">
+        Digite o CNPJ da empresa onde você trabalha. Sua solicitação de acesso será enviada ao administrador para aprovação.
+      </p>
+
+      <div id="cnpj-erro" style="display:none;background:var(--color-danger-bg);color:var(--color-danger);border:1px solid var(--color-danger);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;"></div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">CNPJ da empresa</label>
+        <input id="vc-cnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"
+          style="width:100%;height:40px;padding:0 12px;border:1.5px solid var(--color-card-border);border-radius:8px;font-size:13px;color:var(--color-text-primary);background:var(--color-input-bg);outline:none;font-family:inherit;"
+          onfocus="this.style.borderColor='var(--cobalt-400)'" onblur="this.style.borderColor='var(--color-card-border)'"
+          onkeydown="if(event.key==='Enter')confirmarVinculoCnpj('${profile.id}')"/>
+      </div>
+
+      <button onclick="confirmarVinculoCnpj('${profile.id}')" id="btn-vc"
+        style="width:100%;height:42px;background:var(--cobalt-600);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <span id="btn-vc-txt">Continuar</span>
+        <div id="spinner-vc" style="display:none;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;"></div>
+      </button>
+
+      <button onclick="Auth.logout().then(()=>mostrarTelaLogin())"
+        style="width:100%;height:36px;background:transparent;color:var(--color-text-muted);border:1px solid var(--color-card-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">
+        Cancelar
+      </button>
+    </div>`;
+
+  // Máscara de CNPJ
+  const inp = document.getElementById('vc-cnpj');
+  inp.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g,'').slice(0,14);
+    v = v.replace(/^(\d{2})(\d)/,'$1.$2');
+    v = v.replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3');
+    v = v.replace(/\.(\d{3})(\d)/,'.$1/$2');
+    v = v.replace(/(\d{4})(\d)/,'$1-$2');
+    this.value = v;
+  });
+  setTimeout(() => inp.focus(), 100);
+}
+
+async function confirmarVinculoCnpj(profileId) {
+  const cnpj = document.getElementById('vc-cnpj')?.value.trim();
+  const erroEl = document.getElementById('cnpj-erro');
+  erroEl.style.display = 'none';
+  if (!cnpj) { erroEl.textContent = 'Informe o CNPJ.'; erroEl.style.display = 'block'; return; }
+
+  document.getElementById('btn-vc').disabled = true;
+  document.getElementById('spinner-vc').style.display = 'inline-block';
+  document.getElementById('btn-vc-txt').textContent = 'Verificando...';
+
+  try {
+    const { profile } = await Auth.vincularCnpj(cnpj);
+    mostrarTelaEspera(profile);
+  } catch(e) {
+    erroEl.textContent = e.message;
+    erroEl.style.display = 'block';
+    document.getElementById('btn-vc').disabled = false;
+    document.getElementById('spinner-vc').style.display = 'none';
+    document.getElementById('btn-vc-txt').textContent = 'Continuar';
+  }
+}
+
+// ══════════════════════════════════════════════
+// TELA: AGUARDANDO APROVAÇÃO DO ADMIN
+// ══════════════════════════════════════════════
+function mostrarTelaEspera(profile) {
+  const overlay = document.getElementById('login-overlay');
+  if (!overlay) return;
+
+  overlay.innerHTML = `
+    <div style="background:var(--color-card-bg);border-radius:16px;padding:36px 32px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);text-align:center;animation:fadeDown .3s ease;">
+
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--color-warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px;">
+        ⏳
+      </div>
+
+      <h2 style="font-size:18px;font-weight:700;color:var(--color-text-primary);margin:0 0 8px;">Aguardando aprovação</h2>
+      <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 20px;">
+        Seu acesso à empresa está sendo analisado pelo administrador.
+        Você receberá acesso assim que for aprovado.
+      </p>
+
+      <div style="background:var(--color-page-bg);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:24px;text-align:left;">
+        <p style="font-size:12px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Seus dados</p>
+        <p style="font-size:13px;color:var(--color-text-primary);margin:0 0 4px;"><strong>${profile.nome || '—'}</strong></p>
+        <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 4px;">${profile.email}</p>
+        <p style="font-size:12px;color:var(--color-text-secondary);margin:0;">
+          CNPJ informado: <strong>${profile.cnpj_empresa || '—'}</strong>
+        </p>
+      </div>
+
+      <button onclick="verificarAprovacao('${profile.id}')" id="btn-va"
+        style="width:100%;height:40px;background:var(--cobalt-600);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <i class="ti ti-refresh"></i> Verificar aprovação
+      </button>
+
+      <button onclick="Auth.logout().then(()=>mostrarTelaLogin())"
+        style="width:100%;height:36px;background:transparent;color:var(--color-text-muted);border:1px solid var(--color-card-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">
+        Sair
+      </button>
+    </div>`;
+}
+
+async function verificarAprovacao(profileId) {
+  const btn = document.getElementById('btn-va');
+  if (btn) btn.innerHTML = '<i class="ti ti-loader-2"></i> Verificando...';
+  try {
+    const status = await Auth.verificarStatusAcesso(profileId);
+    if (status?.acesso_status === 'aprovado') {
+      await Auth.logout();
+      mostrarTelaLogin();
+      loginMostrarOk('Acesso aprovado! Faça login novamente.');
+    } else if (status?.acesso_status === 'rejeitado') {
+      await Auth.logout();
+      mostrarTelaLogin();
+      loginMostrarErro('Seu acesso foi negado pelo administrador.');
+    } else {
+      if (btn) {
+        btn.innerHTML = 'Ainda pendente...';
+        setTimeout(() => { if(btn) btn.innerHTML = '<i class="ti ti-refresh"></i> Verificar aprovação'; }, 2000);
+      }
+    }
+  } catch(e) {
+    if (btn) btn.innerHTML = '<i class="ti ti-refresh"></i> Verificar aprovação';
+  }
+}
+
 async function iniciarSistema() {
   const profile = Auth.currentUser();
   if (!profile) { mostrarTelaLogin(); return; }
@@ -679,10 +902,15 @@ async function iniciarSistema() {
   const ini = (profile.nome||'RH').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
   document.getElementById('avatar-btn').textContent   = ini;
   document.getElementById('am-user-nome').textContent = profile.nome || '—';
-  document.getElementById('am-user-role').textContent = Auth.roleLabel(profile.role);
-  if (profile.role === 'admin') {
+  const meusRoles = Array.isArray(profile.roles) ? profile.roles : [profile.role];
+  document.getElementById('am-user-role').textContent = meusRoles.map(r => Auth.roleLabel(r)).join(' · ');
+  if (Auth.hasRole('admin')) {
     const adminLink = document.getElementById('menu-admin-link');
     if (adminLink) adminLink.style.display = 'block';
+  }
+  if (Auth.hasRole('rh')) {
+    const rhLink = document.getElementById('menu-rh-link');
+    if (rhLink) rhLink.style.display = 'block';
   }
 
   // Mostra elementos do sistema (que ficaram ocultos durante o login)
@@ -696,7 +924,7 @@ async function iniciarSistema() {
   if (bn)      bn.style.display      = '';
 
   try {
-    const [emp, fs] = await Promise.all([DB.getEmpresa(), DB.getFuncionarios()]);
+    const emp = await DB.getEmpresa();
 
     if (!emp) {
       // Redireciona para cadastro de empresa
@@ -710,18 +938,26 @@ async function iniciarSistema() {
     document.getElementById('am-empresa').textContent   = emp.razao_social || '—';
     document.getElementById('ti-razao').textContent     = emp.razao_social || '—';
     document.getElementById('ti-cnpj').textContent      = emp.cnpj || '—';
-    document.getElementById('ti-contratos').textContent = fs.length;
-    if (fs.length) {
-      const ents = fs.map(f=>f.entrada).filter(Boolean).sort();
-      const sais = fs.map(f=>f.saida).filter(Boolean).sort();
-      document.getElementById('ti-horario').textContent =
-        (ents[0] && sais[sais.length-1]) ? `${ents[0]} – ${sais[sais.length-1]}` : '—';
-    }
 
-    if (!fs.length && ['admin','rh'].includes(profile.role)) {
-      // Redireciona para cadastro de funcionário
-      location.href = 'setup/funcionario.html';
-      return;
+    // Dados de contagem de funcionários só fazem sentido para admin/rh
+    if (Auth.hasRole('admin') || Auth.hasRole('rh')) {
+      const fs = await DB.getFuncionarios().catch(()=>[]);
+      document.getElementById('ti-contratos').textContent = fs.length;
+      if (fs.length) {
+        const ents = fs.map(f=>f.entrada).filter(Boolean).sort();
+        const sais = fs.map(f=>f.saida).filter(Boolean).sort();
+        document.getElementById('ti-horario').textContent =
+          (ents[0] && sais[sais.length-1]) ? `${ents[0]} – ${sais[sais.length-1]}` : '—';
+      }
+      if (!fs.length) {
+        // Redireciona para cadastro de funcionário
+        location.href = 'setup/funcionario.html';
+        return;
+      }
+    } else {
+      // Funcionário comum: esconde contadores gerais da empresa
+      const tiContratos = document.getElementById('ti-contratos');
+      if (tiContratos) tiContratos.textContent = '—';
     }
   } catch(e) {
     console.error('[iniciarSistema]', e.message);

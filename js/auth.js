@@ -41,7 +41,6 @@ const Auth = {
 
     } catch(err) {
       console.error('[Auth.init]', err.message);
-      // Mostra erro na tela em vez de travar
       const loading = document.getElementById('loading-screen');
       if (loading) {
         loading.innerHTML = `
@@ -66,11 +65,34 @@ const Auth = {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (error || !data) return null;
+
+      // Busca todos os roles do usuário na tabela user_roles.
+      // Se a tabela ainda não existir (migração não rodada), cai no
+      // fallback de usar só o role único de profiles.role.
+      try {
+        const { data: rolesData, error: rolesErr } = await supabase
+          .from('user_roles').select('role').eq('profile_id', userId);
+        if (!rolesErr && rolesData && rolesData.length) {
+          data.roles = rolesData.map(r => r.role);
+        } else {
+          data.roles = [data.role];
+        }
+      } catch(e) {
+        data.roles = [data.role];
+      }
+
       return data;
     } catch(e) {
       console.error('[Auth._loadProfile]', e.message);
       return null;
     }
+  },
+
+  // Verifica se o usuário logado tem um role específico (entre possivelmente vários)
+  hasRole(role) {
+    if (!this._profile) return false;
+    if (Array.isArray(this._profile.roles)) return this._profile.roles.includes(role);
+    return this._profile.role === role;
   },
 
   // Ping de sessão a cada 2 minutos
@@ -89,70 +111,135 @@ const Auth = {
     }, 2 * 60 * 1000);
   },
 
- async login(email, senha) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
-  if (error) throw error;
+  // Verifica se o role passa direto sem aprovação (admin e RH)
+  _isAprovacaoAutomatica(role) {
+    return role === 'admin' || role === 'administrator' || role === 'rh';
+  },
 
-  const profile = await this._loadProfile(data.user.id);
+  // Login com e-mail e senha
+  async login(email, senha) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    if (error) throw error;
 
-  if (!profile?.ativo) {
-    await supabase.auth.signOut();
-    throw new Error('Conta desativada. Entre em contato com o administrador.');
-  }
+    const profile = await this._loadProfile(data.user.id);
 
-  // Verifica status de acesso à empresa
-  const isAdmin =
-  profile.role === 'administrator' ||
-  profile.role === 'admin';
-
-  if (!isAdmin && profile.acesso_status === 'pendente') {
-  this._user    = data.user;
-  this._profile = profile;
-  throw { code: 'ACESSO_PENDENTE', profile };
-  }
-
-  if (profile.acesso_status === 'rejeitado') {
-    await supabase.auth.signOut();
-    throw new Error('Seu acesso à empresa foi negado. Entre em contato com o administrador.');
-  }
-
-  this._user    = data.user;
-  this._profile = profile;
-  return profile;
-},
-
-// Cadastro de novo usuário (apenas admin pode criar)
-async cadastrar(email, senha, nome, role = 'funcionario') {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password: senha,
-    options: {
-      data: { nome, role }
+    if (!profile?.ativo) {
+      await supabase.auth.signOut();
+      throw new Error('Conta desativada. Entre em contato com o administrador.');
     }
-  });
 
-  if (error) throw error;
+    this._user    = data.user;
+    this._profile = profile;
 
-  // Aguarda trigger criar o profile
-  await new Promise(r => setTimeout(r, 800));
+    // Admin e RH entram direto, sem precisar de CNPJ nem aprovação
+    if (this._isAprovacaoAutomatica(profile.role)) {
+      return profile;
+    }
 
-  if (data.user) {
-    await supabase
-      .from('profiles')
-      .update({
+    // Funcionário: precisa ter vinculado um CNPJ primeiro
+    if (!profile.cnpj_empresa) {
+      throw { code: 'SEM_CNPJ', profile };
+    }
+
+    // Já vinculou CNPJ, mas ainda não foi aprovado
+    if (profile.acesso_status === 'pendente') {
+      throw { code: 'ACESSO_PENDENTE', profile };
+    }
+
+    if (profile.acesso_status === 'rejeitado') {
+      await supabase.auth.signOut();
+      throw new Error('Seu acesso à empresa foi negado. Entre em contato com o administrador.');
+    }
+
+    return profile;
+  },
+
+  // Cadastro de novo usuário
+  async cadastrar(email, senha, nome, role = 'funcionario') {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: senha,
+      options: { data: { nome, role } },
+    });
+
+    if (error) throw error;
+
+    // Aguarda trigger criar o profile
+    await new Promise(r => setTimeout(r, 800));
+
+    if (data.user) {
+      await supabase.from('profiles').update({
         nome,
         role,
         ativo: true,
-        acesso_status:
-          role === 'admin' || role === 'administrator'
-            ? 'aprovado'
-            : 'pendente'
-      })
-      .eq('id', data.user.id);
-  }
+        acesso_status: this._isAprovacaoAutomatica(role) ? 'aprovado' : 'pendente',
+      }).eq('id', data.user.id);
+    }
 
-  return data.user;
-},
+    return data.user;
+  },
+
+  // Vincula o usuário logado a uma empresa pelo CNPJ
+  async vincularCnpj(cnpj) {
+    if (!this._profile) throw new Error('Não autenticado');
+
+    const cnpjLimpo = cnpj.replace(/\D/g, '');
+
+    // Busca empresa pelo CNPJ (compara só os números)
+    const { data: empresas, error: errBusca } = await supabase.from('empresa').select('*');
+    if (errBusca) throw errBusca;
+
+    const empresa = (empresas || []).find(e => (e.cnpj || '').replace(/\D/g, '') === cnpjLimpo);
+    if (!empresa) {
+      throw new Error('Nenhuma empresa encontrada com este CNPJ. Verifique o número ou peça para o administrador cadastrar a empresa primeiro.');
+    }
+
+    const { data, error } = await supabase.from('profiles').update({
+      cnpj_empresa: cnpj,
+      acesso_status: 'pendente',
+      updated_at: new Date().toISOString(),
+    }).eq('id', this._profile.id).select().single();
+
+    if (error) throw error;
+    this._profile = data;
+    return { profile: data, empresa };
+  },
+
+  // Cadastra uma nova empresa e vincula o usuário atual como admin dela
+  async cadastrarEmpresaComoAdmin(dadosEmpresa) {
+    if (!this._profile) throw new Error('Não autenticado');
+
+    // Verifica se já existe empresa com esse CNPJ
+    const cnpjLimpo = (dadosEmpresa.cnpj || '').replace(/\D/g, '');
+    const { data: existentes } = await supabase.from('empresa').select('cnpj');
+    const jaExiste = (existentes || []).some(e => (e.cnpj || '').replace(/\D/g, '') === cnpjLimpo);
+    if (jaExiste) {
+      throw new Error('Já existe uma empresa cadastrada com este CNPJ.');
+    }
+
+    // Cria a empresa
+    const { data: empresa, error: errEmpresa } = await supabase.from('empresa').insert(dadosEmpresa).select().single();
+    if (errEmpresa) throw errEmpresa;
+
+    // Promove o usuário atual a admin e vincula a empresa
+    const { data: profile, error: errProfile } = await supabase.from('profiles').update({
+      role: 'admin',
+      acesso_status: 'aprovado',
+      cnpj_empresa: dadosEmpresa.cnpj,
+      updated_at: new Date().toISOString(),
+    }).eq('id', this._profile.id).select().single();
+
+    if (errProfile) throw errProfile;
+    this._profile = profile;
+    return { profile, empresa };
+  },
+
+  // Verifica status atual de aprovação (usado na tela de espera)
+  async verificarStatusAcesso(profileId) {
+    const { data, error } = await supabase.from('profiles').select('acesso_status, cnpj_empresa').eq('id', profileId).single();
+    if (error) throw error;
+    return data;
+  },
 
   // Logout
   async logout() {
@@ -190,20 +277,22 @@ async cadastrar(email, senha, nome, role = 'funcionario') {
   // Verifica se o usuário tem permissão para uma ação
   podeAcessar(rolesPermitidos) {
     if (!this._profile) return false;
-    return rolesPermitidos.includes(this._profile.role);
+    const meusRoles = Array.isArray(this._profile.roles) ? this._profile.roles : [this._profile.role];
+    return rolesPermitidos.some(r => meusRoles.includes(r));
   },
 
   // Protege rota: redireciona se não autenticado ou sem permissão
   async protegerRota(rolesPermitidos = ['admin','rh','funcionario']) {
     const profile = await this.init();
+    // Detecta se estamos numa subpasta (admin/, rh/, setup/, etc.) para calcular o caminho relativo correto
+    const emSubpasta = /\/(admin|rh|setup|auth)\//.test(location.pathname);
+    const base = emSubpasta ? '../index.html' : 'index.html';
     if (!profile) {
-      // Volta para index.html que gerencia o login inline
-      const base = location.pathname.includes('/admin/') ? '../index.html' : 'index.html';
       location.href = base;
       return false;
     }
-    if (!rolesPermitidos.includes(profile.role)) {
-      const base = location.pathname.includes('/admin/') ? '../index.html' : 'index.html';
+    const meusRoles = Array.isArray(profile.roles) ? profile.roles : [profile.role];
+    if (!rolesPermitidos.some(r => meusRoles.includes(r))) {
       location.href = base;
       return false;
     }

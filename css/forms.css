@@ -200,27 +200,27 @@
   color: var(--gray-400);
 }
 
-/* ── ALERTAS ── */
-.alert {
-  padding: var(--space-md);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  margin-bottom: var(--space-lg);
-  display: none;
-}
-
-.alert.visible {
-  display: block;
-}
-
+/* ── ALERTAS ──
+   Removido o display:none/.visible legado: o app.js usa <div class="alert alert-X">
+   diretamente, sem alternar uma classe .visible. A regra antiga aqui escondia
+   TODOS os alertas do sistema (inclusive avisos do dashboard) porque este
+   arquivo carrega depois de layout.css e vencia a cascata. */
 .alert-error {
   background: #FEF2F2;
   color: #991B1B;
   border: 1px solid #FECACA;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: var(--space-lg);
 }
 
 .alert-success {
   background: #F0FDF4;
   color: #166534;
   border: 1px solid #BBF7D0;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: var(--space-lg);
 }

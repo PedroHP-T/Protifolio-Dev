@@ -67,8 +67,40 @@ const DB = {
   },
 
   async getFuncionarioByProfileId(profileId) {
-    const res = await supabase.from('funcionarios').select('*').eq('profile_id', profileId).single();
-    return res.data || null;
+    if (!profileId) return null;
+
+    // 1) Busca direta pelo vínculo já existente
+    const direto = await supabase.from('funcionarios').select('*').eq('profile_id', profileId).maybeSingle();
+    if (direto.error) {
+      console.error('[DB.getFuncionarioByProfileId] erro na busca direta:', direto.error.message);
+      // Erro comum aqui: coluna profile_id não existe no banco ainda (rode supabase_fix_profile_id.sql)
+    }
+    if (direto.data) return direto.data;
+
+    // 2) Sem vínculo ainda: tenta encontrar e vincular automaticamente pelo e-mail do profile
+    const { data: profile, error: errProfile } = await supabase.from('profiles').select('email').eq('id', profileId).maybeSingle();
+    if (errProfile || !profile?.email) return null;
+
+    const emailLimpo = profile.email.trim().toLowerCase();
+
+    const porEmail = await supabase.from('funcionarios').select('*').is('profile_id', null);
+    if (porEmail.error) {
+      console.error('[DB.getFuncionarioByProfileId] erro buscando por e-mail:', porEmail.error.message);
+      return null;
+    }
+    const match = (porEmail.data || []).find(f => (f.email || '').trim().toLowerCase() === emailLimpo);
+    if (match) {
+      // Vincula automaticamente para as próximas consultas serem diretas
+      const upd = await supabase.from('funcionarios').update({ profile_id: profileId }).eq('id', match.id).select().single();
+      if (upd.error) {
+        console.error('[DB.getFuncionarioByProfileId] erro ao vincular automaticamente:', upd.error.message);
+        return match; // mesmo sem conseguir salvar o vínculo, retorna o funcionário encontrado
+      }
+      return upd.data;
+    }
+
+    // 3) Nenhum funcionário com esse e-mail e sem vínculo: não há o que retornar
+    return null;
   },
 
   async saveFuncionario(data) {
@@ -115,24 +147,33 @@ const DB = {
       const a = data.ano, m = String(data.mes).padStart(2,'0'), d = String(data.dia).padStart(2,'0');
       dataISO = `${a}-${m}-${d}`;
     }
-    // Busca registro existente para fazer merge dos campos
-    const { data: existente } = await supabase.from('ponto')
-      .select('*').eq('funcionario_id', funcionarioId).eq('data', dataISO).single();
 
-    const payload = {
-      funcionario_id: funcionarioId,
-      data: dataISO,
-      ...(existente || {}),  // preserva campos já salvos
-      ...campos,             // sobrescreve só o campo alterado
-      updated_at: new Date().toISOString(),
-    };
-    delete payload.id;       // remove id para upsert funcionar pelo conflito
+    // Tenta UPDATE primeiro (preserva todos os campos já existentes, sem race condition)
+    const { data: atualizado, error: errUpdate } = await supabase.from('ponto')
+      .update({ ...campos, updated_at: new Date().toISOString() })
+      .eq('funcionario_id', funcionarioId)
+      .eq('data', dataISO)
+      .select();
 
-    const res = await supabase.from('ponto')
-      .upsert(payload, { onConflict: 'funcionario_id,data' })
-      .select().single();
-    if (res.error) throw res.error;
-    return res.data;
+    if (errUpdate) throw errUpdate;
+
+    // Se já existia e foi atualizado, retorna direto — não há risco de perder outros campos
+    if (atualizado && atualizado.length > 0) {
+      return atualizado[0];
+    }
+
+    // Não existia ainda: cria o registro (primeira batida do dia)
+    const { data: criado, error: errInsert } = await supabase.from('ponto')
+      .insert({
+        funcionario_id: funcionarioId,
+        data: dataISO,
+        ...campos,
+      })
+      .select()
+      .single();
+
+    if (errInsert) throw errInsert;
+    return criado;
   },
 
   async aprovarPonto(pontoId, status, obs) {
@@ -302,6 +343,24 @@ const DB = {
 
   async updateProfileRole(id, role) {
     return await this.updateProfile(id, { role });
+  },
+
+  // Vincula (ou desvincula) um profile a um registro de funcionário.
+  // Garante que cada funcionário só fique vinculado a um profile por vez:
+  // remove qualquer vínculo anterior do mesmo profile_id e do funcionário escolhido.
+  async vincularFuncionarioAoUsuario(profileId, funcionarioId) {
+    // Remove qualquer vínculo anterior que este profile tivesse com outro funcionário
+    await supabase.from('funcionarios').update({ profile_id: null }).eq('profile_id', profileId);
+
+    if (!funcionarioId) return null; // só queria desvincular
+
+    const res = await supabase.from('funcionarios')
+      .update({ profile_id: profileId })
+      .eq('id', funcionarioId)
+      .select().single();
+    if (res.error) throw res.error;
+    await this._log('update', 'funcionarios', funcionarioId, null, { profile_id: profileId });
+    return res.data;
   },
 
   async toggleProfileAtivo(id, ativo) {

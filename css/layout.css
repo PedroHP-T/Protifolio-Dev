@@ -440,12 +440,6 @@ body {
   :root {
     --sidebar-width: 232px;
     --infobar-height: 28px;
-    /* Esconde equipe hoje no mobile — navegação bottom nav substitui */
-    .dash-equipe { display: none; }
-    /* Grid do dashboard vira 1 coluna no mobile */
-    .dash-grid-2col {
-    grid-template-columns: 1fr !important;
-}
   }
 
   /* Topbar */
@@ -470,6 +464,16 @@ body {
   .sidebar.open {
     transform: translateX(0);
     box-shadow: 4px 0 28px rgba(0,0,0,.18);
+  }
+
+  /* Dashboard: grid de 2 colunas vira 1 coluna no mobile */
+  .dash-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Esconde "Equipe hoje" no mobile — só fica a navegação inferior */
+  .dash-equipe {
+    display: none !important;
   }
 
   /* Conteúdo: largura total */

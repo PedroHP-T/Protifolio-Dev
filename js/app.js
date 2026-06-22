@@ -62,10 +62,25 @@ function calcHorasTrabalhadas(r) {
 
 function confirmar(msg, fn) { if (window.confirm(msg)) fn(); }
 
+// Verifica se o usuário logado pode criar/editar/excluir funcionários (admin e rh)
+function podeGerenciarFuncionarios() {
+  return Auth.hasRole('admin') || Auth.hasRole('rh');
+}
+
+// Verifica se o usuário logado deve ver a experiência restrita de "funcionário comum"
+// — ou seja, NÃO tem nenhum role de gestão (admin/rh), mesmo que tenha múltiplos roles.
+function ehSomenteFuncionario() {
+  const profile = Auth.currentUser();
+  if (!profile) return false;
+  return Auth.hasRole('funcionario') && !Auth.hasRole('admin') && !Auth.hasRole('rh');
+}
+
 // ══ DASHBOARD ═════════════════════════════════════════════════
 async function pageDashboard() {
-  const [met, emp] = await Promise.all([DB.getMetricas(), DB.getEmpresa()]);
-  const fs = await DB.getFuncionarios();
+  const profile = Auth.currentUser();
+  const ehFuncionarioComum = ehSomenteFuncionario();
+
+  const [emp] = await Promise.all([DB.getEmpresa()]);
   const hjs = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const dp = emp?.dia_pagamento;
   let pp = '—';
@@ -76,6 +91,55 @@ async function pageDashboard() {
     const diff = Math.ceil((dt-hj)/86400000);
     pp = diff === 0 ? 'Hoje' : diff+(diff===1?' dia':' dias');
   }
+
+  // ── DASHBOARD SIMPLIFICADO PARA FUNCIONÁRIO COMUM ──
+  if (ehFuncionarioComum) {
+    let meuRegistro = null;
+    try { meuRegistro = await DB.getFuncionarioByProfileId(profile.id); } catch(e) {}
+
+    if (!meuRegistro) {
+      return `
+      <h1 class="page-title" style="margin-bottom:6px;">${emp?.nome_fantasia||emp?.razao_social||'Dashboard'}</h1>
+      <p class="page-subtitle">${hjs}</p>
+      <div class="alert alert-warning">
+        <i class="ti ti-alert-circle"></i>
+        <div>
+          <p style="margin:0;">Seu login (<strong>${profile.email}</strong>) ainda não está vinculado a nenhum cadastro de funcionário.</p>
+          <p style="margin:4px 0 0;font-size:12px;">Entre em contato com o RH para vincular seu acesso.</p>
+        </div>
+      </div>`;
+    }
+
+    const bh = await DB.getBancoHoras(meuRegistro.id).catch(()=>({saldo:0}));
+    const folgas = (meuRegistro.dias_folga||[]).map(d=>({segunda:'Seg',terca:'Ter',quarta:'Qua',quinta:'Qui',sexta:'Sex',sabado:'Sáb',domingo:'Dom'}[d]||d)).join(', ')||'—';
+
+    return `
+    <div style="margin-bottom:var(--space-xl);">
+      <h1 class="page-title">Olá, ${meuRegistro.nome.split(' ')[0]}</h1>
+      <p class="page-subtitle" style="margin-bottom:0;">${hjs}</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><p class="label">Meu status</p><p class="value" style="font-size:16px;">${statusBadge(meuRegistro.status||'ativo')}</p></div>
+      <div class="metric-card"><p class="label">Meu horário</p><p class="value" style="font-size:16px;">${meuRegistro.entrada||'—'} – ${meuRegistro.saida||'—'}</p></div>
+      <div class="metric-card"><p class="label">Minhas folgas</p><p class="value" style="font-size:14px;">${folgas}</p></div>
+      <div class="metric-card"><p class="label">Próximo salário</p><p class="value" style="font-size:${pp.length>5?'14px':'22px'};">${pp}</p><p class="trend" style="color:var(--color-text-muted);">dia ${dp||'—'}</p></div>
+      <div class="metric-card"><p class="label">Banco de horas</p><p class="value" style="font-size:16px;color:${bh.saldo>=0?'var(--color-success)':'var(--color-danger)'};">${minToStr(bh.saldo)}</p></div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <p class="section-label" style="margin-bottom:12px;">Ações rápidas</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${[
+          {ico:'ti-clock-edit',txt:'Meu ponto',fn:"navigateTo('ponto')"},
+          {ico:'ti-calendar',txt:'Minha escala',fn:"navigateTo('escala')"},
+          {ico:'ti-receipt',txt:'Meu holerite',fn:"navigateTo('pagamentos')"},
+        ].map(a=>`<button class="btn btn-secondary" style="justify-content:flex-start;gap:8px;" onclick="${a.fn}"><i class="ti ${a.ico}" style="color:var(--cobalt-400);font-size:16px;"></i><span style="font-size:12px;">${a.txt}</span></button>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ── DASHBOARD COMPLETO PARA ADMIN / RH ──
+  const met = await DB.getMetricas();
+  const fs = await DB.getFuncionarios();
 
   const equipeHoje = fs.filter(f=>f.status!=='inativo').slice(0,5).map(f=>`
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--color-card-border);">
@@ -98,7 +162,7 @@ async function pageDashboard() {
       <h1 class="page-title">${emp?.nome_fantasia||emp?.razao_social||'Dashboard'}</h1>
       <p class="page-subtitle" style="margin-bottom:0;">${hjs}</p>
     </div>
-    <button class="btn btn-primary" onclick="abrirModalFunc()"><i class="ti ti-plus"></i> Novo funcionário</button>
+    ${podeGerenciarFuncionarios() ? `<button class="btn btn-primary" onclick="abrirModalFunc()"><i class="ti ti-plus"></i> Novo funcionário</button>` : ''}
   </div>
   ${alertaHTML}
   <div class="metric-grid">
@@ -109,19 +173,19 @@ async function pageDashboard() {
     <div class="metric-card"><p class="label">Próximo salário</p><p class="value" style="font-size:${pp.length>5?'14px':'22px'};">${pp}</p><p class="trend" style="color:var(--color-text-muted);">dia ${dp||'—'}</p></div>
     <div class="metric-card"><p class="label">Aprovações</p><p class="value" style="color:${aprovsPend>0?'var(--color-warning)':'var(--metric-value)'};">${aprovsPend}</p><p class="trend" style="color:var(--color-text-muted);">pendentes</p></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <div class="dash-grid-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
     <div class="card">
       <p class="section-label" style="margin-bottom:12px;">Ações rápidas</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         ${[
-          {ico:'ti-user-plus',txt:'Novo funcionário',fn:"abrirModalFunc()"},
+          ...(podeGerenciarFuncionarios() ? [{ico:'ti-user-plus',txt:'Novo funcionário',fn:"abrirModalFunc()"}] : []),
           {ico:'ti-clock-edit',txt:'Lançar ponto',fn:"navigateTo('ponto')"},
           {ico:'ti-calendar',txt:'Ver escala',fn:"navigateTo('escala')"},
           {ico:'ti-receipt',txt:'Pagamentos',fn:"navigateTo('pagamentos')"},
         ].map(a=>`<button class="btn btn-secondary" style="justify-content:flex-start;gap:8px;" onclick="${a.fn}"><i class="ti ${a.ico}" style="color:var(--cobalt-400);font-size:16px;"></i><span style="font-size:12px;">${a.txt}</span></button>`).join('')}
       </div>
     </div>
-    <div class="card">
+    <div class="card dash-equipe">
       <p class="section-label" style="margin-bottom:4px;">Equipe hoje</p>
       ${equipeHoje || '<p style="font-size:13px;color:var(--color-text-muted);padding:12px 0;">Nenhum funcionário ativo.</p>'}
       ${fs.filter(f=>f.status!=='inativo').length > 5 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;" onclick="navigateTo('funcionarios')">Ver todos</button>` : ''}
@@ -132,7 +196,30 @@ async function pageDashboard() {
 
 // ══ FUNCIONÁRIOS ══════════════════════════════════════════════
 async function pageFuncionarios() {
-  const lista = await DB.getFuncionarios();
+  const profile = Auth.currentUser();
+  const ehFuncionarioComum = ehSomenteFuncionario();
+
+  let lista = await DB.getFuncionarios();
+
+  // Funcionário comum só pode ver o próprio cadastro nesta tela
+  if (ehFuncionarioComum) {
+    let meuRegistro = null;
+    try { meuRegistro = await DB.getFuncionarioByProfileId(profile.id); } catch(e) {}
+    lista = meuRegistro ? [meuRegistro] : [];
+
+    if (!meuRegistro) {
+      return `
+      <h1 class="page-title" style="margin-bottom:6px;">Meu Cadastro</h1>
+      <div class="alert alert-warning">
+        <i class="ti ti-alert-circle"></i>
+        <div>
+          <p style="margin:0;">Seu login (<strong>${profile.email}</strong>) ainda não está vinculado a nenhum cadastro de funcionário.</p>
+          <p style="margin:4px 0 0;font-size:12px;">Entre em contato com o RH.</p>
+        </div>
+      </div>`;
+    }
+  }
+
   const cards = lista.map(f => `
     <div class="card func-card" data-nome="${f.nome.toLowerCase()}" data-cargo="${(f.cargo||'').toLowerCase()}"
       style="display:flex;align-items:flex-start;gap:14px;transition:box-shadow .15s;"
@@ -148,10 +235,10 @@ async function pageFuncionarios() {
             ${statusBadge(f.status||'ativo')}
           </div>
           <div style="display:flex;gap:5px;">
-            <button class="btn btn-secondary btn-sm btn-icon" title="Ver ficha" onclick="verFicha('${f.id}')"><i class="ti ti-eye"></i></button>
-            <button class="btn btn-secondary btn-sm btn-icon" title="Editar" onclick="abrirModalFunc('${f.id}')"><i class="ti ti-edit"></i></button>
+            ${podeGerenciarFuncionarios() ? `<button class="btn btn-secondary btn-sm btn-icon" title="Ver ficha" onclick="verFicha('${f.id}')"><i class="ti ti-eye"></i></button>` : ''}
+            ${podeGerenciarFuncionarios() ? `<button class="btn btn-secondary btn-sm btn-icon" title="Editar" onclick="abrirModalFunc('${f.id}')"><i class="ti ti-edit"></i></button>` : ''}
             <button class="btn btn-secondary btn-sm btn-icon" title="Holerite" onclick="gerarHolerite('${f.id}')"><i class="ti ti-file-text"></i></button>
-            <button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="excluirFunc('${f.id}','${f.nome.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
+            ${podeGerenciarFuncionarios() ? `<button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="excluirFunc('${f.id}','${f.nome.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>` : ''}
           </div>
         </div>
         <p style="font-size:12px;color:var(--color-text-secondary);margin:4px 0 8px;">${f.cargo||'—'} · ${f.departamento||'—'} · <strong>${(f.tipo_contrato||'').toUpperCase()||'—'}</strong></p>
@@ -166,8 +253,9 @@ async function pageFuncionarios() {
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-xl);">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Funcionários</h1>
-    <p class="page-subtitle" style="margin:0;">${lista.length} cadastro(s)</p></div>
+    <div><h1 class="page-title" style="margin-bottom:2px;">${ehFuncionarioComum?'Meu Cadastro':'Funcionários'}</h1>
+    <p class="page-subtitle" style="margin:0;">${ehFuncionarioComum?'':lista.length+' cadastro(s)'}</p></div>
+    ${!ehFuncionarioComum ? `
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <div style="position:relative;">
         <i class="ti ti-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--color-text-muted);font-size:14px;pointer-events:none;"></i>
@@ -177,8 +265,8 @@ async function pageFuncionarios() {
         <option value="">Todos</option><option value="ativo">Ativos</option>
         <option value="ferias">Férias</option><option value="afastado">Afastados</option><option value="inativo">Inativos</option>
       </select>
-      <button class="btn btn-primary" onclick="abrirModalFunc()"><i class="ti ti-plus"></i> Novo</button>
-    </div>
+      ${podeGerenciarFuncionarios() ? `<button class="btn btn-primary" onclick="abrirModalFunc()"><i class="ti ti-plus"></i> Novo</button>` : ''}
+    </div>` : ''}
   </div>
   <div id="func-lista" style="display:flex;flex-direction:column;gap:10px;">
     ${lista.length ? cards : '<div class="card"><p style="font-size:13px;color:var(--color-text-muted);">Nenhum funcionário cadastrado.</p></div>'}
@@ -230,7 +318,7 @@ async function verFicha(id) {
           <button class="btn btn-primary" onclick="gerarHolerite('${f.id}')"><i class="ti ti-file-text"></i> Holerite</button>
           <button class="btn btn-secondary" onclick="abrirEnvioHolerite('${f.id}')"><i class="ti ti-mail"></i> Enviar</button>
         </div>
-        <button class="btn btn-secondary" style="width:100%;" onclick="abrirModalFunc('${f.id}');fecharFicha()"><i class="ti ti-edit"></i> Editar</button>
+        ${podeGerenciarFuncionarios() ? `<button class="btn btn-secondary" style="width:100%;" onclick="abrirModalFunc('${f.id}');fecharFicha()"><i class="ti ti-edit"></i> Editar</button>` : ''}
       </div>
     </div>
   </div>
@@ -588,11 +676,28 @@ async function gerarHolerite(id) {
 
 // ══ ESCALA ════════════════════════════════════════════════════
 async function pageEscala() {
-  const fs = await DB.getFuncionarios();
+  const profile = Auth.currentUser();
+  const ehFuncionarioComum = ehSomenteFuncionario();
+
+  const fsAll = await DB.getFuncionarios();
   const hj = new Date(), ano=hj.getFullYear(), mes=hj.getMonth();
   const nomeMes = hj.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const dnf=['domingo','segunda','terca','quarta','quinta','sexta','sabado'];
   const dna=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  // Funcionário comum só vê a própria escala
+  let fs = fsAll;
+  let meuRegistro = null;
+  let erroVinculo = null;
+  if (ehFuncionarioComum) {
+    try {
+      meuRegistro = await DB.getFuncionarioByProfileId(profile.id);
+    } catch(e) {
+      erroVinculo = e.message;
+      console.error('[pageEscala] erro ao buscar vínculo:', e);
+    }
+    fs = meuRegistro ? [meuRegistro] : [];
+  }
 
   function buildCal(f) {
     const dim=new Date(ano,mes+1,0).getDate(), pd=new Date(ano,mes,1).getDay();
@@ -619,15 +724,35 @@ async function pageEscala() {
     return {rows,dt,df,hm:Math.round(hd*dt)};
   }
 
+  // Funcionário comum sem registro vinculado: mostra aviso
+  if (ehFuncionarioComum && !meuRegistro) {
+    return `
+    <h1 class="page-title" style="margin-bottom:6px;">Escalas</h1>
+    <p class="page-subtitle">${nomeMes}</p>
+    <div class="alert alert-warning">
+      <i class="ti ti-alert-circle"></i>
+      <div>
+        <p style="margin:0;">Seu login (<strong>${profile.email}</strong>) ainda não está vinculado a nenhum cadastro de funcionário.</p>
+        <p style="margin:4px 0 0;font-size:12px;">Peça ao RH para cadastrar um funcionário usando exatamente este e-mail, ou para vincular manualmente seu acesso em Área de RH → Usuários → Editar.</p>
+        ${erroVinculo ? `<p style="margin:8px 0 0;font-size:11px;color:var(--color-danger);font-family:monospace;">Erro técnico: ${erroVinculo}</p>` : ''}
+      </div>
+    </div>`;
+  }
+
   const opts = fs.map((f,i)=>`<option value="${i}">${f.nome}</option>`).join('');
   const f0 = fs[0];
   const cal0 = f0 ? buildCal(f0) : null;
   const bh0  = f0 ? await DB.getBancoHoras(f0.id) : {saldo:0};
 
+  // Guarda a lista de funcionários numa variável global em vez de
+  // serializar JSON dentro do atributo onchange (que quebrava com
+  // nomes contendo aspas ou apóstrofos)
+  window._escalaFuncionarios = fs.map(f=>({id:f.id,nome:f.nome,dias_folga:f.dias_folga||[],entrada:f.entrada,saida:f.saida,turno:f.turno}));
+
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-xl);">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Escalas</h1><p class="page-subtitle" style="margin:0;">${nomeMes}</p></div>
-    ${fs.length?`<div style="display:flex;gap:8px;align-items:center;"><select id="sel-esc" class="input" style="width:200px;" onchange="reEscala(this.value,${JSON.stringify(fs.map(f=>({id:f.id,nome:f.nome,dias_folga:f.dias_folga||[],entrada:f.entrada,saida:f.saida,turno:f.turno})))})">${opts}</select></div>`:''}
+    <div><h1 class="page-title" style="margin-bottom:2px;">${ehFuncionarioComum?'Minha Escala':'Escalas'}</h1><p class="page-subtitle" style="margin:0;">${nomeMes}</p></div>
+    ${!ehFuncionarioComum && fs.length?`<div style="display:flex;gap:8px;align-items:center;"><select id="sel-esc" class="input" style="width:200px;" onchange="reEscala(this.value, window._escalaFuncionarios)">${opts}</select></div>`:''}
   </div>
   <div id="esc-metrics" class="metric-grid" style="margin-bottom:16px;">
     <div class="metric-card"><p class="label">Dias trabalhados</p><p class="value">${cal0?.dt||0}</p></div>
@@ -681,10 +806,29 @@ async function reEscala(idx, fsList) {
 
 // ══ PONTO ═════════════════════════════════════════════════════
 async function pagePonto() {
-  const fs = await DB.getFuncionarios();
+  const profile = Auth.currentUser();
+  const ehFuncionarioComum = ehSomenteFuncionario();
+
+  const fsAll = await DB.getFuncionarios();
   const hj = new Date();
   const mesAno = hj.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const aprovsPend = (await DB.getAprovacoes('pendente').catch(()=>[])) || [];
+
+  // Funcionário comum só vê e edita o próprio ponto
+  let fs = fsAll;
+  let meuRegistro = null;
+  if (ehFuncionarioComum) {
+    try { meuRegistro = await DB.getFuncionarioByProfileId(profile.id); } catch(e) {}
+    fs = meuRegistro ? [meuRegistro] : [];
+  }
+
+  if (ehFuncionarioComum && !meuRegistro) {
+    return `
+    <h1 class="page-title" style="margin-bottom:6px;">Folha de ponto</h1>
+    <p class="page-subtitle">${mesAno}</p>
+    <div class="alert alert-warning"><i class="ti ti-alert-circle"></i> Seu cadastro de funcionário ainda não foi vinculado. Entre em contato com o RH.</div>`;
+  }
+
   const opts = fs.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
 
   if (!fs.length) {
@@ -706,13 +850,14 @@ async function pagePonto() {
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-lg);">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Folha de ponto</h1>
+    <div><h1 class="page-title" style="margin-bottom:2px;">${ehFuncionarioComum?'Meu Ponto':'Folha de ponto'}</h1>
     <p class="page-subtitle" style="margin:0;">${mesAno}</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <select id="sel-ponto" class="input" style="width:200px;" onchange="rePonto(this.value)">${opts}</select>
+      ${!ehFuncionarioComum ? `<select id="sel-ponto" class="input" style="width:200px;" onchange="rePonto(this.value)">${opts}</select>` : ''}
       <button class="btn btn-secondary btn-sm" onclick="exportarPontoCsv()"><i class="ti ti-download"></i> Exportar</button>
     </div>
   </div>
+  <input type="hidden" id="ponto-funcionario-id" value="${fs[0].id}"/>
   ${aprovsPend.length ? `<div class="alert alert-warning" style="margin-bottom:12px;"><i class="ti ti-clock-edit"></i><span>${aprovsPend.length} correção(ões) aguardando aprovação</span><button class="btn btn-sm btn-secondary" style="margin-left:auto;" onclick="verAprovacoes()">Ver</button></div>` : ''}
   <div id="ponto-corpo">${tabelaInicial}</div>
   <div id="modal-aprovacoes"></div>`;
@@ -902,7 +1047,9 @@ async function resolverAprov(id, status) {
 
 async function exportarPontoCsv() {
   const sel=document.getElementById('sel-ponto');
-  const fid=sel?.value; if (!fid) return;
+  const hidden=document.getElementById('ponto-funcionario-id');
+  const fid=sel?.value || hidden?.value;
+  if (!fid) return;
   const f=await DB.getFuncionarioById(fid); if (!f) return;
   const hj=new Date(), ano=hj.getFullYear(), mes=hj.getMonth()+1;
   const dim=new Date(ano,mes,0).getDate();
@@ -926,11 +1073,28 @@ async function exportarPontoCsv() {
 
 // ══ PAGAMENTOS ════════════════════════════════════════════════
 async function pagePagamentos() {
-  const [emp, fs] = await Promise.all([DB.getEmpresa(), DB.getFuncionarios()]);
+  const profile = Auth.currentUser();
+  const ehFuncionarioComum = ehSomenteFuncionario();
+
+  const [emp, fsAll] = await Promise.all([DB.getEmpresa(), DB.getFuncionarios()]);
   const hj=new Date(), mes=hj.getMonth(), ano=hj.getFullYear();
   const diaSal=parseInt(emp?.dia_pagamento)||5, diaVale=parseInt(emp?.dia_vale)||20;
   const nomeMes=hj.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const dim=new Date(ano,mes+1,0).getDate(), pd=new Date(ano,mes,1).getDay();
+
+  // Funcionário comum só vê a própria linha
+  let fs = fsAll;
+  let meuRegistro = null;
+  let erroVinculo = null;
+  if (ehFuncionarioComum) {
+    try {
+      meuRegistro = await DB.getFuncionarioByProfileId(profile.id);
+    } catch(e) {
+      erroVinculo = e.message;
+      console.error('[pagePagamentos] erro ao buscar vínculo:', e);
+    }
+    fs = meuRegistro ? [meuRegistro] : [];
+  }
 
   function proxData(d){let x=new Date(ano,mes,d);if(x<hj)x=new Date(ano,mes+1,d);return x;}
   function diasAte(d){const di=Math.ceil((d-hj)/86400000);return di===0?'Hoje':di<0?'Passou':'Em '+di+(di===1?' dia':' dias');}
@@ -950,6 +1114,21 @@ async function pagePagamentos() {
   const tds2=cells.match(/<td[\s\S]*?<\/td>/g)||[];
   let calRows=''; for(let i=0;i<tds2.length;i+=7) calRows+=`<tr>${tds2.slice(i,i+7).join('')}</tr>`;
 
+  // Funcionário comum sem registro vinculado: mostra aviso
+  if (ehFuncionarioComum && !meuRegistro) {
+    return `
+    <h1 class="page-title" style="margin-bottom:6px;">Pagamentos</h1>
+    <p class="page-subtitle">${nomeMes}</p>
+    <div class="alert alert-warning">
+      <i class="ti ti-alert-circle"></i>
+      <div>
+        <p style="margin:0;">Seu login (<strong>${profile.email}</strong>) ainda não está vinculado a nenhum cadastro de funcionário.</p>
+        <p style="margin:4px 0 0;font-size:12px;">Peça ao RH para cadastrar um funcionário usando exatamente este e-mail, ou para vincular manualmente seu acesso em Área de RH → Usuários → Editar.</p>
+        ${erroVinculo ? `<p style="margin:8px 0 0;font-size:11px;color:var(--color-danger);font-family:monospace;">Erro técnico: ${erroVinculo}</p>` : ''}
+      </div>
+    </div>`;
+  }
+
   const linhas=fs.map(f=>{
     const sal=parseFloat(f.salario||0), inss=calcINSS(sal), irrf=calcIRRF(sal-inss);
     const vr=parseFloat(f.vale_refeicao||0), vt=parseFloat(f.vale_transporte||0);
@@ -966,16 +1145,17 @@ async function pagePagamentos() {
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-xl);">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Pagamentos</h1><p class="page-subtitle" style="margin:0;">${nomeMes}</p></div>
-    <button class="btn btn-secondary btn-sm" onclick="exportarFolhaCsv()"><i class="ti ti-download"></i> Exportar folha</button>
+    <div><h1 class="page-title" style="margin-bottom:2px;">${ehFuncionarioComum ? 'Meu Holerite' : 'Pagamentos'}</h1><p class="page-subtitle" style="margin:0;">${nomeMes}</p></div>
+    ${!ehFuncionarioComum ? `<button class="btn btn-secondary btn-sm" onclick="exportarFolhaCsv()"><i class="ti ti-download"></i> Exportar folha</button>` : ''}
   </div>
   <div class="metric-grid" style="margin-bottom:20px;">
-    <div class="metric-card"><p class="label">Total salários</p><p class="value" style="font-size:15px;">${fmtR(tSal)}</p></div>
+    <div class="metric-card"><p class="label">${ehFuncionarioComum?'Salário':'Total salários'}</p><p class="value" style="font-size:15px;">${fmtR(tSal)}</p></div>
     <div class="metric-card"><p class="label">Vale refeição</p><p class="value" style="font-size:15px;">${fmtR(tVR)}</p></div>
     <div class="metric-card"><p class="label">Vale transporte</p><p class="value" style="font-size:15px;">${fmtR(tVT)}</p></div>
+    ${!ehFuncionarioComum ? `
     <div class="metric-card"><p class="label">FGTS (encargo)</p><p class="value" style="font-size:15px;color:var(--color-warning);">${fmtR(tFGTS)}</p></div>
     <div class="metric-card"><p class="label">Provisão 13º</p><p class="value" style="font-size:15px;color:var(--color-info);">${fmtR(t13)}/mês</p></div>
-    <div class="metric-card"><p class="label">Custo total</p><p class="value" style="font-size:15px;">${fmtR(tSal+tVR+tVT+tFGTS)}</p></div>
+    <div class="metric-card"><p class="label">Custo total</p><p class="value" style="font-size:15px;">${fmtR(tSal+tVR+tVT+tFGTS)}</p></div>` : ''}
   </div>
   <div style="display:grid;grid-template-columns:1fr 248px;gap:16px;align-items:start;">
     <div class="table-wrap">
@@ -993,10 +1173,11 @@ async function pagePagamentos() {
           ${diaVale?`<div style="display:flex;align-items:center;gap:8px;"><div style="width:18px;height:18px;border-radius:50%;background:var(--cobalt-200);flex-shrink:0;"></div><div><p style="font-size:12px;font-weight:500;color:var(--color-text-primary);margin:0;">Vale — dia ${diaVale}</p><p style="font-size:11px;color:var(--color-text-secondary);margin:0;">${diasAte(proxData(diaVale))}</p></div></div>`:''}
         </div>
       </div>
+      ${!ehFuncionarioComum ? `
       <div class="card">
         <p class="section-label" style="margin-bottom:10px;">Encargos e provisões</p>
         ${[['FGTS (8%)',fmtR(tFGTS),'warning'],['13º (1/12)',fmtR(t13),'info'],['Férias (1/11)',fmtR(tSal/11),'info']].map(([l,v,t])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--color-card-border);"><span style="font-size:12px;color:var(--color-text-secondary);">${l}</span><span class="badge badge-${t}">${v}</span></div>`).join('')}
-      </div>
+      </div>` : ''}
     </div>
   </div>`;
 }
