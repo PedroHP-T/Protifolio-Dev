@@ -120,13 +120,6 @@
       <li class="menu-item active" data-sec="metricas"><i class="ti ti-chart-bar"></i><span>Métricas</span></li>
       <li class="menu-item" data-sec="online"><i class="ti ti-wifi"></i><span>Usuários online</span></li>
     </ul>
-    <p class="admin-menu-section">Gestão</p>
-    <ul class="menu">
-      <li class="menu-item" data-sec="usuarios"><i class="ti ti-users"></i><span>Usuários</span></li>
-      <li class="menu-item" data-sec="departamentos"><i class="ti ti-building"></i><span>Departamentos</span></li>
-      <li class="menu-item" data-sec="cargos"><i class="ti ti-id-badge"></i><span>Cargos</span></li>
-      <li class="menu-item" data-sec="aprovacoes"><i class="ti ti-clipboard-check"></i><span>Aprovações</span></li>
-    </ul>
     <p class="admin-menu-section">Sistema</p>
     <ul class="menu">
       <li class="menu-item" data-sec="auditoria"><i class="ti ti-history"></i><span>Auditoria</span></li>
@@ -146,9 +139,9 @@
 <!-- BOTTOM NAV mobile — área administrativa -->
 <nav class="bottom-nav" id="bottom-nav" style="display:none;">
   <div class="bottom-nav-item active" data-sec="metricas"><i class="ti ti-chart-bar"></i><span>Métricas</span></div>
-  <div class="bottom-nav-item" data-sec="usuarios"><i class="ti ti-users"></i><span>Usuários</span></div>
-  <div class="bottom-nav-item" data-sec="aprovacoes"><i class="ti ti-clipboard-check"></i><span>Aprovações</span></div>
+  <div class="bottom-nav-item" data-sec="online"><i class="ti ti-wifi"></i><span>Online</span></div>
   <div class="bottom-nav-item" data-sec="auditoria"><i class="ti ti-history"></i><span>Logs</span></div>
+  <div class="bottom-nav-item" data-sec="backup"><i class="ti ti-database-export"></i><span>Backup</span></div>
   <div class="bottom-nav-item" data-sec="configuracoes"><i class="ti ti-settings"></i><span>Config.</span></div>
 </nav>
 
@@ -162,12 +155,16 @@
   const profile = Auth.currentUser();
   if(profile) {
     const ini = (profile.nome||'AD').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
-    document.getElementById('avatar-btn').textContent     = ini;
-    document.getElementById('admin-user-nome').textContent = profile.nome || '—';
-    document.getElementById('admin-user-role').textContent = {admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[profile.role]||profile.role;
+    const avatarBtn = document.getElementById('avatar-btn');
+    if (avatarBtn) avatarBtn.textContent = ini;
+    const nomeEl = document.getElementById('admin-user-nome');
+    if (nomeEl) nomeEl.textContent = profile.nome || '—';
+    const roleEl = document.getElementById('admin-user-role');
+    if (roleEl) roleEl.textContent = {admin:'Administrador',rh:'RH',funcionario:'Funcionário'}[profile.role]||profile.role;
     try {
       const emp = await DB.getEmpresa();
-      document.getElementById('admin-emp-nome').textContent = emp?.nome_fantasia || emp?.razao_social || '—';
+      const empEl = document.getElementById('admin-emp-nome');
+      if (empEl) empEl.textContent = emp?.nome_fantasia || emp?.razao_social || '—';
     } catch(e){}
   }
   // Aplica preferências salvas
@@ -175,24 +172,69 @@
   aplicarFonteAdmin(localStorage.getItem('rh_fonte_grande')==='1');
   aplicarContrasteAdmin(localStorage.getItem('rh_alto_contraste')==='1');
   // Ativa bottom nav em mobile
-  if(window.innerWidth <= 768) document.getElementById('bottom-nav').style.display='flex';
+  if(window.innerWidth <= 768) {
+    const bn = document.getElementById('bottom-nav');
+    if (bn) bn.style.display='flex';
+  }
   initAdmin();
 })();
+
+// ── SIDEBAR MOBILE ────────────────────────────────────────────
+const _adminMenuToggleBtn = document.getElementById('menu-toggle-btn');
+if (_adminMenuToggleBtn) {
+  _adminMenuToggleBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('sidebar')?.classList.toggle('open');
+    document.getElementById('sidebar-overlay')?.classList.toggle('visible');
+  });
+}
+
+function fecharSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-overlay')?.classList.remove('visible');
+}
+
+// Navegação sidebar — funciona em desktop e mobile
+function navAdmin(sec) {
+  document.querySelectorAll('.menu-item, .bottom-nav-item').forEach(i => {
+    i.classList.toggle('active', i.dataset.sec === sec);
+  });
+  fecharSidebar();
+  renderSecao(sec);
+}
+
+document.querySelectorAll('.sidebar .menu-item').forEach(item => {
+  item.addEventListener('click', () => navAdmin(item.dataset.sec));
+});
+
+document.querySelectorAll('.bottom-nav-item').forEach(item => {
+  item.addEventListener('click', () => navAdmin(item.dataset.sec));
+});
+
+// Responsividade: exibe/oculta bottom nav ao redimensionar
+window.addEventListener('resize', () => {
+  const bn = document.getElementById('bottom-nav');
+  if(bn) bn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+});
 
 // ── MENU AVATAR ───────────────────────────────────────────────
 function toggleAvatarAdmin(){
   const m=document.getElementById('avatar-menu-admin');
-  document.getElementById('notif-panel-admin').style.display='none';
+  if(!m) return;
+  const np=document.getElementById('notif-panel-admin');
+  if(np) np.style.display='none';
   m.style.display=m.style.display==='none'?'block':'none';
 }
 function toggleNotifAdmin(){
   const p=document.getElementById('notif-panel-admin');
-  document.getElementById('avatar-menu-admin').style.display='none';
+  if(!p) return;
+  document.getElementById('avatar-menu-admin')?.style && (document.getElementById('avatar-menu-admin').style.display='none');
   p.style.display=p.style.display==='none'?'block':'none';
   if(p.style.display==='block') carregarNotifAdmin();
 }
 async function carregarNotifAdmin(){
   const el=document.getElementById('notif-lista-admin');
+  if(!el) return;
   try{
     const aprovs=await DB.getAprovacoes('pendente');
     if(!aprovs||!aprovs.length){el.textContent='Nenhuma notificação pendente.';return;}
@@ -249,44 +291,9 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     fecharSidebar();
-    document.getElementById('avatar-menu-admin').style.display='none';
-    document.getElementById('notif-panel-admin').style.display='none';
+    document.getElementById('avatar-menu-admin')?.style && (document.getElementById('avatar-menu-admin').style.display='none');
+    document.getElementById('notif-panel-admin')?.style && (document.getElementById('notif-panel-admin').style.display='none');
   }
-});
-
-// ── SIDEBAR MOBILE ────────────────────────────────────────────
-document.getElementById('menu-toggle-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebar-overlay').classList.toggle('visible');
-});
-
-function fecharSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('visible');
-}
-
-// Navegação sidebar — funciona em desktop e mobile
-function navAdmin(sec) {
-  document.querySelectorAll('.menu-item, .bottom-nav-item').forEach(i => {
-    i.classList.toggle('active', i.dataset.sec === sec);
-  });
-  fecharSidebar();
-  renderSecao(sec);
-}
-
-document.querySelectorAll('.sidebar .menu-item').forEach(item => {
-  item.addEventListener('click', () => navAdmin(item.dataset.sec));
-});
-
-document.querySelectorAll('.bottom-nav-item').forEach(item => {
-  item.addEventListener('click', () => navAdmin(item.dataset.sec));
-});
-
-// Responsividade: exibe/oculta bottom nav ao redimensionar
-window.addEventListener('resize', () => {
-  const bn = document.getElementById('bottom-nav');
-  if(bn) bn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
 });
 
 // ── UTILITÁRIOS ───────────────────────────────────────────────
@@ -323,10 +330,6 @@ async function renderSecao(sec){
     switch(sec){
       case 'metricas':      el.innerHTML=await secMetricas();      break;
       case 'online':        el.innerHTML=await secOnline();         break;
-      case 'usuarios':      el.innerHTML=await secUsuarios();       break;
-      case 'departamentos': el.innerHTML=await secDepartamentos();  break;
-      case 'cargos':        el.innerHTML=await secCargos();         break;
-      case 'aprovacoes':    el.innerHTML=await secAprovacoes();     break;
       case 'auditoria':     el.innerHTML=await secAuditoria();      break;
       case 'backup':        el.innerHTML=await secBackup();         break;
       case 'configuracoes': el.innerHTML=await secConfiguracoes();  break;
@@ -352,7 +355,7 @@ async function secMetricas(){
     <div class="stat-card"><p class="s-label">Funcionários</p><p class="s-value">${ativos}</p><p class="s-sub">ativos no sistema</p></div>
     <div class="stat-card"><p class="s-label">Usuários</p><p class="s-value">${(users||[]).length}</p><p class="s-sub">${admins} admin · ${rhs} RH</p></div>
     <div class="stat-card"><p class="s-label">Online agora</p><p class="s-value" style="color:var(--color-success);">${(sessoes||[]).length}</p><p class="s-sub">nos últimos 5 min</p></div>
-    <div class="stat-card"><p class="s-label">Aprovações</p><p class="s-value" style="color:${(aprovs||[]).length>0?'var(--color-warning)':'var(--metric-value)'};">${(aprovs||[]).length}</p><p class="s-sub">pendentes</p></div>
+    <div class="stat-card" style="cursor:pointer;" onclick="location.href='../rh/index.html'" title="Ir para Aprovações na Área de RH"><p class="s-label">Aprovações</p><p class="s-value" style="color:${(aprovs||[]).length>0?'var(--color-warning)':'var(--metric-value)'};">${(aprovs||[]).length}</p><p class="s-sub">pendentes · ver na Área de RH</p></div>
     <div class="stat-card"><p class="s-label">Folha líquida</p><p class="s-value" style="font-size:18px;">${fmtR(folha)}</p><p class="s-sub">estimativa mensal</p></div>
   </div>
 
@@ -421,458 +424,6 @@ async function secOnline(){
   </div>`;
 }
 
-// ── USUÁRIOS ─────────────────────────────────────────────────
-async function secUsuarios() {
-  const users = await DB.getProfiles();
-
-  const pendentes  = (users || []).filter(u => u.acesso_status === 'pendente');
-  const aprovados  = (users || []).filter(u => u.acesso_status === 'aprovado');
-  const rejeitados = (users || []).filter(u => u.acesso_status === 'rejeitado');
-
-  const resto = [...aprovados, ...rejeitados];
-
-  const tabelaPendentes = pendentes.length ? `
-    <div class="admin-section" style="margin-bottom:20px;border:2px solid var(--color-warning);">
-      <div class="admin-section-header" style="background:var(--color-warning-bg);">
-        <p class="admin-section-title" style="color:var(--color-warning);">
-          ⏳ ${pendentes.length} acesso(s) aguardando aprovação
-        </p>
-      </div>
-
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>E-mail</th>
-              <th>Função</th>
-              <th>Cadastro</th>
-              <th class="c">Ações</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${pendentes.map(u => `
-              <tr>
-                <td style="font-weight:600;">${u.nome || '—'}</td>
-                <td>${u.email}</td>
-                <td>${roleBadge(u.role)}</td>
-                <td style="font-size:12px;color:var(--color-text-muted);">
-                  ${fmtDT(u.created_at)}
-                </td>
-
-                <td class="c">
-                  <div style="display:flex;gap:6px;justify-content:center;">
-                    <button
-                      class="btn btn-sm"
-                      style="background:var(--color-success-bg);color:var(--color-success);border:1px solid var(--color-success);"
-                      onclick="aprovarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
-                      <i class="ti ti-check"></i> Aprovar
-                    </button>
-
-                    <button
-                      class="btn btn-danger btn-sm"
-                      onclick="rejeitarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
-                      <i class="ti ti-x"></i> Rejeitar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  ` : '';
-
-  return `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-      <div>
-        <h1 class="page-title" style="margin-bottom:2px;">Gerenciar Usuários</h1>
-        <p style="font-size:13px;color:var(--color-text-muted);margin:0;">
-          ${(users || []).length} usuários cadastrados
-        </p>
-      </div>
-
-      <button class="btn btn-primary" onclick="modalNovoUsuario()">
-        <i class="ti ti-user-plus"></i> Novo usuário
-      </button>
-    </div>
-
-    ${tabelaPendentes}
-
-    <div class="admin-section">
-      <div class="admin-section-header">
-        <p class="admin-section-title">Todos os usuários</p>
-      </div>
-
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>E-mail</th>
-              <th>Role</th>
-              <th>Acesso</th>
-              <th>Status</th>
-              <th>Último login</th>
-              <th class="c">Ações</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${resto.map(u => `
-              <tr>
-                <td style="font-weight:500;">${u.nome || '—'}</td>
-
-                <td style="color:var(--color-text-secondary);">
-                  ${u.email}
-                </td>
-
-                <td>${roleBadge(u.role)}</td>
-
-                <td>
-                  ${
-                    u.acesso_status === 'aprovado'
-                      ? '<span class="badge badge-success">Aprovado</span>'
-                      : '<span class="badge badge-danger">Rejeitado</span>'
-                  }
-                </td>
-
-                <td>${statusBadge(u.ativo !== false)}</td>
-
-                <td style="color:var(--color-text-muted);font-size:12px;">
-                  ${fmtDT(u.ultimo_login)}
-                </td>
-
-                <td class="c">
-                  <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
-
-                    <button
-                      class="btn btn-secondary btn-sm btn-icon"
-                      title="Editar"
-                      onclick="modalEditarUsuario('${u.id}','${u.nome.replace(/'/g,"\\'")}','${u.email}','${u.role}',${u.ativo!==false})">
-                      <i class="ti ti-edit"></i>
-                    </button>
-
-                    ${
-                      u.acesso_status === 'rejeitado'
-                        ? `
-                          <button
-                            class="btn btn-sm"
-                            style="background:var(--color-success-bg);color:var(--color-success);border:1px solid var(--color-success);"
-                            title="Aprovar novamente"
-                            onclick="aprovarAcesso('${u.id}','${u.nome.replace(/'/g,"\\'")}')">
-                            <i class="ti ti-check"></i>
-                          </button>
-                        `
-                        : ''
-                    }
-
-                    <button
-                      class="btn btn-secondary btn-sm btn-icon"
-                      title="${u.ativo !== false ? 'Desativar' : 'Ativar'}"
-                      onclick="toggleUser('${u.id}',${u.ativo !== false})">
-                      ${
-                        u.ativo !== false
-                          ? '<i class="ti ti-user-off"></i>'
-                          : '<i class="ti ti-user-check"></i>'
-                      }
-                    </button>
-
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-async function aprovarAcesso(id, nome) {
-  if (!confirm(`Aprovar acesso de ${nome}?`)) return;
-
-  try {
-    await supabase
-      .from('profiles')
-      .update({ acesso_status: 'aprovado' })
-      .eq('id', id);
-
-    toast(`${nome} aprovado!`);
-    renderSecao('usuarios');
-  } catch (e) {
-    toast(e.message, 'err');
-  }
-}
-
-async function rejeitarAcesso(id, nome) {
-  if (!confirm(`Rejeitar acesso de ${nome}? O usuário não conseguirá entrar no sistema.`)) return;
-
-  try {
-    await supabase
-      .from('profiles')
-      .update({ acesso_status: 'rejeitado' })
-      .eq('id', id);
-
-    toast(`Acesso de ${nome} rejeitado.`, 'err');
-    renderSecao('usuarios');
-  } catch (e) {
-    toast(e.message, 'err');
-  }
-}
-
-function modalNovoUsuario(){
-  document.getElementById('modal-root').innerHTML=`
-  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:440px;box-shadow:var(--shadow-lg);">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;">
-        <p style="font-size:15px;font-weight:600;margin:0;">Novo usuário</p>
-        <button class="btn btn-icon btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''"><i class="ti ti-x"></i></button>
-      </div>
-      <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
-        <div class="field-group"><label class="field-label">Nome</label><input id="nu-nome" type="text" class="input" placeholder="Nome completo"/></div>
-        <div class="field-group"><label class="field-label">E-mail</label><input id="nu-email" type="email" class="input" placeholder="email@empresa.com"/></div>
-        <div class="field-group"><label class="field-label">Senha</label><input id="nu-senha" type="password" class="input" placeholder="mínimo 6 caracteres"/></div>
-        <div class="field-group"><label class="field-label">Role</label>
-          <select id="nu-role" class="input"><option value="funcionario">Funcionário</option><option value="rh">RH</option><option value="admin">Administrador</option></select>
-        </div>
-        <div id="nu-err" class="alert alert-danger" style="display:none;"></div>
-      </div>
-      <div style="padding:14px 20px;border-top:1px solid var(--color-card-border);display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
-        <button class="btn btn-primary" onclick="criarUsuario()"><i class="ti ti-check"></i> Criar</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function criarUsuario(){
-  const nome=document.getElementById('nu-nome').value.trim();
-  const email=document.getElementById('nu-email').value.trim();
-  const senha=document.getElementById('nu-senha').value;
-  const role=document.getElementById('nu-role').value;
-  const err=document.getElementById('nu-err');
-  if(!nome||!email||!senha){err.textContent='Preencha todos os campos.';err.style.display='block';return;}
-  try{
-    await Auth.cadastrar(email,senha,nome,role);
-    document.getElementById('modal-root').innerHTML='';
-    toast('Usuário criado com sucesso!');
-    renderSecao('usuarios');
-  }catch(e){err.textContent=e.message;err.style.display='block';}
-}
-
-function modalEditarUsuario(id,nome,email,role,ativo){
-  document.getElementById('modal-root').innerHTML=`
-  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:440px;box-shadow:var(--shadow-lg);">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--color-card-border);display:flex;align-items:center;justify-content:space-between;">
-        <p style="font-size:15px;font-weight:600;margin:0;">Editar usuário</p>
-        <button class="btn btn-icon btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''"><i class="ti ti-x"></i></button>
-      </div>
-      <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
-        <div class="field-group"><label class="field-label">Nome</label><input id="eu-nome" type="text" class="input" value="${nome}"/></div>
-        <div class="field-group"><label class="field-label">E-mail</label><input type="email" class="input" value="${email}" disabled style="opacity:.6;"/></div>
-        <div class="field-group"><label class="field-label">Role</label>
-          <select id="eu-role" class="input">
-            <option value="funcionario" ${role==='funcionario'?'selected':''}>Funcionário</option>
-            <option value="rh" ${role==='rh'?'selected':''}>RH</option>
-            <option value="admin" ${role==='admin'?'selected':''}>Administrador</option>
-          </select>
-        </div>
-        <div id="eu-err" class="alert alert-danger" style="display:none;"></div>
-      </div>
-      <div style="padding:14px 20px;border-top:1px solid var(--color-card-border);display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarEdicaoUsuario('${id}')"><i class="ti ti-check"></i> Salvar</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function salvarEdicaoUsuario(id){
-  const nome=document.getElementById('eu-nome').value.trim();
-  const role=document.getElementById('eu-role').value;
-  const err=document.getElementById('eu-err');
-  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
-  try{
-    await DB.updateProfile(id,{nome,role});
-    document.getElementById('modal-root').innerHTML='';
-    toast('Usuário atualizado!');
-    renderSecao('usuarios');
-  }catch(e){err.textContent=e.message;err.style.display='block';}
-}
-
-async function toggleUser(id,ativo){
-  if(!confirm(`${ativo?'Desativar':'Ativar'} este usuário?`))return;
-  try{await DB.toggleProfileAtivo(id,!ativo);toast(ativo?'Usuário desativado':'Usuário ativado');renderSecao('usuarios');}
-  catch(e){toast(e.message,'err');}
-}
-
-// ── DEPARTAMENTOS ────────────────────────────────────────────
-async function secDepartamentos(){
-  const deps=await DB.getDepartamentos();
-  return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Departamentos</h1><p style="font-size:13px;color:var(--color-text-muted);margin:0;">${(deps||[]).length} departamentos</p></div>
-    <button class="btn btn-primary" onclick="modalDepartamento()"><i class="ti ti-plus"></i> Novo</button>
-  </div>
-  <div class="admin-section">
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Nome</th><th>Gestor</th><th class="c">Ações</th></tr></thead>
-        <tbody>
-          ${(deps||[]).length===0?'<tr><td colspan="3" style="text-align:center;color:var(--color-text-muted);">Nenhum departamento cadastrado</td></tr>':
-            (deps||[]).map(d=>`<tr>
-              <td style="font-weight:500;">${d.nome}</td>
-              <td style="color:var(--color-text-secondary);">${d.profiles?.nome||'—'}</td>
-              <td class="c"><div style="display:flex;gap:4px;justify-content:center;">
-                <button class="btn btn-secondary btn-sm btn-icon" onclick="modalDepartamento('${d.id}','${d.nome.replace(/'/g,"\\'")}')"><i class="ti ti-edit"></i></button>
-                <button class="btn btn-danger btn-sm btn-icon" onclick="excluirDepartamento('${d.id}')"><i class="ti ti-trash"></i></button>
-              </div></td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
-}
-
-function modalDepartamento(id='',nome=''){
-  document.getElementById('modal-root').innerHTML=`
-  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:400px;box-shadow:var(--shadow-lg);padding:24px;">
-      <p style="font-size:15px;font-weight:600;margin:0 0 16px;">${id?'Editar':'Novo'} departamento</p>
-      <div class="field-group" style="margin-bottom:16px;"><label class="field-label">Nome</label><input id="dep-nome" type="text" class="input" value="${nome}" placeholder="Ex: Tecnologia"/></div>
-      <div id="dep-err" class="alert alert-danger" style="display:none;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarDepartamento('${id}')"><i class="ti ti-check"></i> Salvar</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function salvarDepartamento(id){
-  const nome=document.getElementById('dep-nome').value.trim();
-  const err=document.getElementById('dep-err');
-  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
-  try{await DB.saveDepartamento({id:id||undefined,nome});document.getElementById('modal-root').innerHTML='';toast('Departamento salvo!');renderSecao('departamentos');}
-  catch(e){err.textContent=e.message;err.style.display='block';}
-}
-
-async function excluirDepartamento(id){
-  if(!confirm('Excluir departamento?'))return;
-  try{await DB.deleteDepartamento(id);toast('Departamento removido');renderSecao('departamentos');}
-  catch(e){toast(e.message,'err');}
-}
-
-// ── CARGOS ───────────────────────────────────────────────────
-async function secCargos(){
-  const cargos=await DB.getCargos();
-  const deps=await DB.getDepartamentos();
-  const depMap=Object.fromEntries((deps||[]).map(d=>[d.id,d.nome]));
-  return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-    <div><h1 class="page-title" style="margin-bottom:2px;">Cargos</h1><p style="font-size:13px;color:var(--color-text-muted);margin:0;">${(cargos||[]).length} cargos</p></div>
-    <button class="btn btn-primary" onclick="modalCargo(null,${JSON.stringify(deps||[]).replace(/"/g,"'")})"><i class="ti ti-plus"></i> Novo cargo</button>
-  </div>
-  <div class="admin-section">
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Cargo</th><th>Departamento</th><th>Nível</th><th>Salário base</th><th class="c">Ações</th></tr></thead>
-        <tbody>
-          ${(cargos||[]).length===0?'<tr><td colspan="5" style="text-align:center;color:var(--color-text-muted);">Nenhum cargo</td></tr>':
-            (cargos||[]).map(c=>`<tr>
-              <td style="font-weight:500;">${c.nome}</td>
-              <td>${depMap[c.departamento_id]||'—'}</td>
-              <td><span class="badge badge-info">${c.nivel||'—'}</span></td>
-              <td>${fmtR(c.salario_base)}</td>
-              <td class="c"><div style="display:flex;gap:4px;justify-content:center;">
-                <button class="btn btn-danger btn-sm btn-icon" onclick="excluirCargo('${c.id}')"><i class="ti ti-trash"></i></button>
-              </div></td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
-}
-
-function modalCargo(id,deps){
-  // deps já vem como array
-  const depOpts=deps.map(d=>`<option value="${d.id}">${d.nome}</option>`).join('');
-  document.getElementById('modal-root').innerHTML=`
-  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--color-card-bg);border-radius:var(--radius-lg);width:100%;max-width:440px;box-shadow:var(--shadow-lg);padding:24px;">
-      <p style="font-size:15px;font-weight:600;margin:0 0 16px;">Novo cargo</p>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="field-group"><label class="field-label">Nome do cargo</label><input id="c-nome" type="text" class="input" placeholder="Ex: Analista de TI"/></div>
-        <div class="field-group"><label class="field-label">Departamento</label><select id="c-dep" class="input"><option value="">Selecione...</option>${depOpts}</select></div>
-        <div class="field-group"><label class="field-label">Nível</label>
-          <select id="c-nivel" class="input"><option value="junior">Júnior</option><option value="pleno">Pleno</option><option value="senior">Sênior</option><option value="gestor">Gestor</option><option value="diretor">Diretor</option></select>
-        </div>
-        <div class="field-group"><label class="field-label">Salário base (R$)</label><input id="c-sal" type="number" class="input" placeholder="0,00" min="0" step="0.01"/></div>
-        <div id="c-err" class="alert alert-danger" style="display:none;"></div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarCargo()"><i class="ti ti-check"></i> Salvar</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function salvarCargo(){
-  const nome=document.getElementById('c-nome').value.trim();
-  const dep=document.getElementById('c-dep').value;
-  const nivel=document.getElementById('c-nivel').value;
-  const sal=parseFloat(document.getElementById('c-sal').value)||0;
-  const err=document.getElementById('c-err');
-  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
-  try{await DB.saveCargo({nome,departamento_id:dep||null,nivel,salario_base:sal});document.getElementById('modal-root').innerHTML='';toast('Cargo salvo!');renderSecao('cargos');}
-  catch(e){err.textContent=e.message;err.style.display='block';}
-}
-
-async function excluirCargo(id){
-  if(!confirm('Excluir cargo?'))return;
-  try{await DB.deleteCargo(id);toast('Cargo removido');renderSecao('cargos');}
-  catch(e){toast(e.message,'err');}
-}
-
-// ── APROVAÇÕES ───────────────────────────────────────────────
-async function secAprovacoes(){
-  const aprovs=await DB.getAprovacoes();
-  return`
-  <h1 class="page-title" style="margin-bottom:6px;">Aprovações e Solicitações</h1>
-  <p class="page-subtitle">Gerencie todas as solicitações do sistema</p>
-  <div class="admin-section">
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Tipo</th><th>Funcionário</th><th>Observação</th><th>Status</th><th>Data</th><th class="c">Ações</th></tr></thead>
-        <tbody>
-          ${(aprovs||[]).length===0?'<tr><td colspan="6" style="text-align:center;color:var(--color-text-muted);">Nenhuma solicitação</td></tr>':
-            (aprovs||[]).map(a=>`<tr>
-              <td><span class="badge badge-info">${a.tipo}</span></td>
-              <td>${a.funcionarios?.nome||'—'}</td>
-              <td style="color:var(--color-text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.obs||a.dados?.obs||'—'}</td>
-              <td>${a.status==='pendente'?'<span class="badge badge-warning">Pendente</span>':a.status==='aprovado'?'<span class="badge badge-success">Aprovado</span>':'<span class="badge badge-danger">Rejeitado</span>'}</td>
-              <td style="font-size:12px;color:var(--color-text-muted);">${fmtDT(a.created_at)}</td>
-              <td class="c">${a.status==='pendente'?`<div style="display:flex;gap:4px;justify-content:center;">
-                <button class="btn btn-secondary btn-sm" style="color:var(--color-success);" onclick="resolverAprov('${a.id}','aprovado')"><i class="ti ti-check"></i></button>
-                <button class="btn btn-danger btn-sm" onclick="resolverAprov('${a.id}','rejeitado')"><i class="ti ti-x"></i></button>
-              </div>`:'—'}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
-}
-
-async function resolverAprov(id,status){
-  try{await DB.resolverAprovacao(id,status,'');toast(status==='aprovado'?'Aprovado!':'Rejeitado');renderSecao('aprovacoes');}
-  catch(e){toast(e.message,'err');}
-}
-
 // ── AUDITORIA ────────────────────────────────────────────────
 async function secAuditoria(){
   const logs=await DB.getAuditLogs(200);
@@ -933,7 +484,6 @@ async function exportarTabela(tabela){
     toast(`Backup de ${tabela} exportado!`);
   }catch(e){toast(e.message,'err');}
 }
-
 // ── CONFIGURAÇÕES ────────────────────────────────────────────
 async function secConfiguracoes(){
   const empData=await DB.getEmpresa()||{};
