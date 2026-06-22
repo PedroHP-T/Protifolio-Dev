@@ -1227,3 +1227,5 @@ async function relFuncionarios() {
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`funcionarios_${new Date().toISOString().slice(0,10)}.csv`;a.click();
   toast('Relatório exportado!');
 }
+
+//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//
