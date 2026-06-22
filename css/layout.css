@@ -596,7 +596,7 @@ body {
   .menu-toggle { display: none !important; }
 }
 
-/* ══ IMPRESSÃO ══ */
+/* ══ IMPRESSÃO - AAAAAAAAAAAAAAAAAAAAAAAAA ══ */
 @media print {
   .topbar, .topbar-info, .sidebar, .bottom-nav,
   .menu-toggle, .btn, .avatar-menu, #notif-panel { display: none !important; }
